@@ -89,18 +89,92 @@ async function scrapeSPToday() {
       fuel: {}
     };
 
-    $('table tr, .currency-row, .rate-row').each((i, row) => {
-      const text = $(row).text();
-      const cells = $(row).find('td, .value');
-      if(cells.length >= 2) {
-        const name = $(cells[0]).text().trim();
-        const buy = parseFloat($(cells[1]).text().replace(/[^0-9.]/g,''));
-        const sell = cells.length >= 3 ? parseFloat($(cells[2]).text().replace(/[^0-9.]/g,'')) : buy;
-        if(name && buy > 0) {
-          if(name.includes('دولار') || name.includes('Dollar') || name.includes('USD')) data.currencies.USD = {buy, sell, name:'دولار'};
-          else if(name.includes('يورو') || name.includes('Euro') || name.includes('EUR')) data.currencies.EUR = {buy, sell, name:'يورو'};
-          else if(name.includes('تركي') || name.includes('Turkish') || name.includes('TRY')) data.currencies.TRY = {buy, sell, name:'ليرة تركية'};
-          else if(name.includes('ريال سعودي') || name.includes('SAR')) data.currencies.SAR = {buy, sell, name:'ريال سعودي'};
+    const currencySelectors = [
+      '.currency-value', '.rate-value', '.exchange-rate',
+      '[class*="currency"]', '[class*="rate"]', '[class*="price"]'
+    ];
+
+    let foundUSD = false;
+    $('*').each((i, el) => {
+      if(foundUSD) return;
+      const text = $(el).text().trim();
+      const children = $(el).children().length;
+      if(children > 5) return;
+
+      if((text.includes('دولار') || text.includes('Dollar') || text.includes('USD') || text.includes('$')) && children < 3) {
+        const nums = text.match(/[\d,]+\.?\d*/g);
+        if(nums) {
+          const validNums = nums.map(n => parseFloat(n.replace(/,/g,''))).filter(n => n > 5000 && n < 200000);
+          if(validNums.length >= 2) {
+            data.currencies.USD = {buy: validNums[0], sell: validNums[1], name:'دولار'};
+            foundUSD = true;
+          } else if(validNums.length === 1) {
+            data.currencies.USD = {buy: validNums[0], sell: Math.round(validNums[0]*1.007), name:'دولار'};
+            foundUSD = true;
+          }
+        }
+      }
+    });
+
+    let foundEUR = false;
+    $('*').each((i, el) => {
+      if(foundEUR) return;
+      const text = $(el).text().trim();
+      const children = $(el).children().length;
+      if(children > 5) return;
+      if((text.includes('يورو') || text.includes('Euro') || text.includes('EUR') || text.includes('€')) && children < 3) {
+        const nums = text.match(/[\d,]+\.?\d*/g);
+        if(nums) {
+          const validNums = nums.map(n => parseFloat(n.replace(/,/g,''))).filter(n => n > 5000 && n < 250000);
+          if(validNums.length >= 2) {
+            data.currencies.EUR = {buy: validNums[0], sell: validNums[1], name:'يورو'};
+            foundEUR = true;
+          } else if(validNums.length === 1) {
+            data.currencies.EUR = {buy: validNums[0], sell: Math.round(validNums[0]*1.007), name:'يورو'};
+            foundEUR = true;
+          }
+        }
+      }
+    });
+
+    let foundTRY = false;
+    $('*').each((i, el) => {
+      if(foundTRY) return;
+      const text = $(el).text().trim();
+      const children = $(el).children().length;
+      if(children > 5) return;
+      if((text.includes('تركي') || text.includes('Turkish') || text.includes('TRY') || text.includes('₺')) && children < 3) {
+        const nums = text.match(/[\d,]+\.?\d*/g);
+        if(nums) {
+          const validNums = nums.map(n => parseFloat(n.replace(/,/g,''))).filter(n => n > 100 && n < 10000);
+          if(validNums.length >= 2) {
+            data.currencies.TRY = {buy: validNums[0], sell: validNums[1], name:'ليرة تركية'};
+            foundTRY = true;
+          } else if(validNums.length === 1) {
+            data.currencies.TRY = {buy: validNums[0], sell: Math.round(validNums[0]*1.007), name:'ليرة تركية'};
+            foundTRY = true;
+          }
+        }
+      }
+    });
+
+    let foundSAR = false;
+    $('*').each((i, el) => {
+      if(foundSAR) return;
+      const text = $(el).text().trim();
+      const children = $(el).children().length;
+      if(children > 5) return;
+      if((text.includes('سعودي') || text.includes('Saudi') || text.includes('SAR') || text.includes('﷼')) && children < 3) {
+        const nums = text.match(/[\d,]+\.?\d*/g);
+        if(nums) {
+          const validNums = nums.map(n => parseFloat(n.replace(/,/g,''))).filter(n => n > 1000 && n < 50000);
+          if(validNums.length >= 2) {
+            data.currencies.SAR = {buy: validNums[0], sell: validNums[1], name:'ريال سعودي'};
+            foundSAR = true;
+          } else if(validNums.length === 1) {
+            data.currencies.SAR = {buy: validNums[0], sell: Math.round(validNums[0]*1.007), name:'ريال سعودي'};
+            foundSAR = true;
+          }
         }
       }
     });
@@ -123,13 +197,23 @@ async function scrapeSPToday() {
     }
 
     $('*').each((i, el) => {
-      const text = $(el).text();
+      const text = $(el).text().trim();
+      const children = $(el).children().length;
+      if(children > 3) return;
       const val = parseFloat(text.replace(/[^0-9.]/g,''));
-      if(val > 50000 && val < 5000000) {
-        if(text.includes('24') || text.includes('عيار 24')) data.gold.k24 = val;
-        else if(text.includes('21') || text.includes('عيار 21')) data.gold.k21 = val;
-        else if(text.includes('18') || text.includes('عيار 18')) data.gold.k18 = val;
-        else if(text.includes('14') || text.includes('عيار 14')) data.gold.k14 = val;
+      if(val > 500000 && val < 10000000) {
+        if(text.includes('عيار 24') || text.includes('24')) {
+          if(!data.gold.k24 || Math.abs(val - 2400000) < Math.abs(data.gold.k24 - 2400000)) data.gold.k24 = val;
+        }
+        if(text.includes('عيار 21') || text.includes('21')) {
+          if(!data.gold.k21 || Math.abs(val - 2100000) < Math.abs(data.gold.k21 - 2100000)) data.gold.k21 = val;
+        }
+        if(text.includes('عيار 18') || text.includes('18')) {
+          if(!data.gold.k18 || Math.abs(val - 1800000) < Math.abs(data.gold.k18 - 1800000)) data.gold.k18 = val;
+        }
+        if(text.includes('عيار 14') || text.includes('14')) {
+          if(!data.gold.k14 || Math.abs(val - 1400000) < Math.abs(data.gold.k14 - 1400000)) data.gold.k14 = val;
+        }
       }
     });
 
