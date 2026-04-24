@@ -485,6 +485,20 @@ app.get('/send/:period', async(req,res) => {
   res.json({sent: true});
 });
 
+app.get('/api/test/syria', async(req,res) => {
+  try {
+    const data = await scrapeSPToday();
+    res.json({
+      success: !!data,
+      currencies: data?.currencies || 'FAILED',
+      gold: data?.gold || 'FAILED',
+      source: 'sp-today.com'
+    });
+  } catch(e) {
+    res.json({success: false, error: e.message});
+  }
+});
+
 let botOffset = 0;
 
 async function sendMsg(chatId, text, keyboard) {
