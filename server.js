@@ -127,7 +127,8 @@ async function buildMessage(period) {
 
   msg += `━━━━━━━━━━━━━━━\n`;
   msg += `⚠️ الأسعار تقريبية للاستئناس فقط\n`;
-  msg += `🔄 يتم التحديث 3 مرات يومياً`;
+  msg += `🔄 يتم التحديث 3 مرات يومياً\n`;
+  msg += `📢 <a href="https://t.me/sr3_alyom">سعر اليوم</a>`;
 
   return msg;
 }
