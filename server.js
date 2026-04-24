@@ -278,10 +278,12 @@ function formatNumber(num, decimals=2) {
 }
 
 async function buildMessage(period, changedCurrencies) {
-  const spData = await scrapeSPToday();
+  const rates = await getRates();
   const metals = await getGoldSilver();
-  const globalRates = await getRates();
+  const spData = await scrapeSPToday();
   const fuel = getSyriaFuelPrices();
+
+  if(!rates) return null;
 
   const now = new Date();
   const nowDate = now.toLocaleDateString('ar-SA', {
@@ -297,7 +299,6 @@ async function buildMessage(period, changedCurrencies) {
     minute: '2-digit',
     hour12: false
   });
-
   const timeStr = nowTime;
   const periodLabel = {
     morning: `🌅 نشرة الصباح - ${timeStr}`,
@@ -305,6 +306,20 @@ async function buildMessage(period, changedCurrencies) {
     evening: `🌙 نشرة المساء - ${timeStr}`,
     update: `🔔 نشرة الساعة ${timeStr}`
   }[period] || `📊 نشرة الساعة ${timeStr}`;
+
+  const EUR = rates.EUR || 0;
+  const TRY = rates.TRY || 0;
+  const goldGram = metals.gold ? (metals.gold / 31.1035) : 0;
+  const silverGram = metals.silver ? (metals.silver / 31.1035) : 0;
+
+  const sypUSD = spData?.currencies?.USD?.buy || rates.SYP || 0;
+  const sypUSD_sell = spData?.currencies?.USD?.sell || Math.round(sypUSD*1.007);
+  const sypEUR = spData?.currencies?.EUR?.buy || (EUR ? rates.SYP/EUR : 0);
+  const sypEUR_sell = spData?.currencies?.EUR?.sell || Math.round(sypEUR*1.007);
+  const sypTRY = spData?.currencies?.TRY?.buy || (TRY ? rates.SYP/TRY : 0);
+  const sypTRY_sell = spData?.currencies?.TRY?.sell || Math.round(sypTRY*1.007);
+  const sypSAR = spData?.currencies?.SAR?.buy || (rates.SAR ? rates.SYP/rates.SAR : 0);
+  const sypSAR_sell = spData?.currencies?.SAR?.sell || Math.round(sypSAR*1.007);
 
   let msg = '';
 
@@ -320,69 +335,68 @@ async function buildMessage(period, changedCurrencies) {
   msg += `📅 ${nowDate} - ${nowTime}\n`;
   msg += `━━━━━━━━━━━━━━━\n\n`;
 
-  const USD = spData?.currencies?.USD;
-  const EUR = spData?.currencies?.EUR;
-  const TRY = spData?.currencies?.TRY;
-  const SAR = spData?.currencies?.SAR;
-
-  const usdMid = USD?.buy || globalRates?.SYP || 0;
-  const eurMid = EUR?.buy || (globalRates?.SYP && globalRates?.EUR ? globalRates.SYP / globalRates.EUR : 0);
-  const tryMid = TRY?.buy || (globalRates?.SYP && globalRates?.TRY ? globalRates.SYP / globalRates.TRY : 0);
-  const sarMid = SAR?.buy || (globalRates?.SYP && globalRates?.SAR ? globalRates.SYP / globalRates.SAR : 0);
-
-  msg += `🇸🇾 <b>أسعار الصرف مقابل الليرة السورية</b>\n`;
+  msg += `🇸🇾 <b>الليرة السورية</b>\n`;
   msg += `┌─────────────────────\n`;
-  if(usdMid > 0) {
-    const buy = USD?.buy || Math.round(usdMid*0.993);
-    const sell = USD?.sell || Math.round(usdMid*1.007);
-    msg += `│ 🇺🇸 1 دولار  | شراء: ‎${formatNumber(buy,0)} | بيع: ‎${formatNumber(sell,0)} ل.س${getArrow(usdMid, previousRates.SYP)}\n`;
-  }
-  if(eurMid > 0) {
-    const buy = EUR?.buy || Math.round(eurMid*0.993);
-    const sell = EUR?.sell || Math.round(eurMid*1.007);
-    msg += `│ 🇪🇺 1 يورو   | شراء: ‎${formatNumber(buy,0)} | بيع: ‎${formatNumber(sell,0)} ل.س\n`;
-  }
-  if(tryMid > 0) {
-    const buy = TRY?.buy || Math.round(tryMid*0.993);
-    const sell = TRY?.sell || Math.round(tryMid*1.007);
-    msg += `│ 🇹🇷 1 ليرة   | شراء: ‎${formatNumber(buy,0)} | بيع: ‎${formatNumber(sell,0)} ل.س\n`;
-  }
-  if(sarMid > 0) {
-    const buy = SAR?.buy || Math.round(sarMid*0.993);
-    const sell = SAR?.sell || Math.round(sarMid*1.007);
-    msg += `│ 🇸🇦 1 ريال   | شراء: ‎${formatNumber(buy,0)} | بيع: ‎${formatNumber(sell,0)} ل.س\n`;
-  }
+  if(sypUSD > 0) msg += `│ 🇺🇸 1 دولار  | شراء: ‎${formatNumber(sypUSD,0)} | بيع: ‎${formatNumber(sypUSD_sell,0)} ل.س${getArrow(sypUSD, previousRates.SYP)}\n`;
+  if(sypEUR > 0) msg += `│ 🇪🇺 1 يورو   | شراء: ‎${formatNumber(sypEUR,0)} | بيع: ‎${formatNumber(sypEUR_sell,0)} ل.س\n`;
+  if(sypTRY > 0) msg += `│ 🇹🇷 1 ليرة   | شراء: ‎${formatNumber(sypTRY,0)} | بيع: ‎${formatNumber(sypTRY_sell,0)} ل.س\n`;
+  if(sypSAR > 0) msg += `│ 🇸🇦 1 ريال   | شراء: ‎${formatNumber(sypSAR,0)} | بيع: ‎${formatNumber(sypSAR_sell,0)} ل.س\n`;
+  msg += `└─────────────────────\n\n`;
+
+  const sarMid = rates.SAR;
+  msg += `🇸🇦 <b>الريال السعودي</b>\n`;
+  msg += `┌─────────────────────\n`;
+  msg += `│ 🇺🇸 1 دولار  | شراء: ‎${formatNumber(sarMid*0.9993,4)} | بيع: ‎${formatNumber(sarMid*1.0007,4)} ر.س${getArrow(rates.SAR, previousRates.SAR)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1 يورو   | شراء: ‎${formatNumber(sarMid/EUR*0.993,4)} | بيع: ‎${formatNumber(sarMid/EUR*1.007,4)} ر.س\n`;
+  if(TRY) msg += `│ 🇹🇷 1 ليرة   | شراء: ‎${formatNumber(sarMid/TRY*0.993,4)} | بيع: ‎${formatNumber(sarMid/TRY*1.007,4)} ر.س\n`;
+  msg += `│ 🇮🇶 1 دينار  | شراء: ‎${formatNumber(sarMid/rates.IQD*0.993,6)} | بيع: ‎${formatNumber(sarMid/rates.IQD*1.007,6)} ر.س\n`;
+  msg += `└─────────────────────\n\n`;
+
+  const iqdMid = rates.IQD;
+  msg += `🇮🇶 <b>الدينار العراقي</b>\n`;
+  msg += `┌─────────────────────\n`;
+  msg += `│ 🇺🇸 1 دولار  | شراء: ‎${formatNumber(Math.round(iqdMid*0.997),0)} | بيع: ‎${formatNumber(Math.round(iqdMid*1.003),0)} د.ع${getArrow(rates.IQD, previousRates.IQD)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1 يورو   | شراء: ‎${formatNumber(Math.round(iqdMid/EUR*0.997),0)} | بيع: ‎${formatNumber(Math.round(iqdMid/EUR*1.003),0)} د.ع\n`;
+  if(TRY) msg += `│ 🇹🇷 1 ليرة   | شراء: ‎${formatNumber(Math.round(iqdMid/TRY*0.997),0)} | بيع: ‎${formatNumber(Math.round(iqdMid/TRY*1.003),0)} د.ع\n`;
+  msg += `│ 🇸🇦 1 ريال   | شراء: ‎${formatNumber(Math.round(iqdMid/rates.SAR*0.997),0)} | بيع: ‎${formatNumber(Math.round(iqdMid/rates.SAR*1.003),0)} د.ع\n`;
   msg += `└─────────────────────\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n\n`;
-  msg += `🥇 <b>أسعار الذهب بالليرة السورية</b>\n`;
+  msg += `🥇 <b>الذهب والفضة</b>\n`;
   msg += `┌─────────────────────\n`;
-
-  const goldUSD = metals.gold ? metals.gold / 31.1035 : 0;
-  const g24 = spData?.gold?.k24 || (goldUSD * usdMid) || 0;
-  const g21 = spData?.gold?.k21 || (g24 * 0.875) || 0;
-  const g18 = spData?.gold?.k18 || (g24 * 0.75) || 0;
-  const g14 = spData?.gold?.k14 || (g24 * 0.585) || 0;
-
-  if(g24 > 0) msg += `│ ✨ عيار 24  | ‎${formatNumber(g24,0)} ل.س/غرام${getArrow(g24, previousMetals.gold / 31.1035 * usdMid)}\n`;
-  if(g21 > 0) msg += `│ ✨ عيار 21  | ‎${formatNumber(g21,0)} ل.س/غرام\n`;
-  if(g18 > 0) msg += `│ ✨ عيار 18  | ‎${formatNumber(g18,0)} ل.س/غرام\n`;
-  if(g14 > 0) msg += `│ ✨ عيار 14  | ‎${formatNumber(g14,0)} ل.س/غرام\n`;
-
-  if(metals.silver) {
-    const silverSYP = (metals.silver / 31.1035) * usdMid;
-    msg += `│ 🥈 فضة      | ‎${formatNumber(silverSYP,0)} ل.س/غرام\n`;
+  if(metals.gold > 0) {
+    const g24 = spData?.gold?.k24 || Math.round(goldGram * sypUSD);
+    const g21 = spData?.gold?.k21 || Math.round(g24 * 0.875);
+    const g18 = spData?.gold?.k18 || Math.round(g24 * 0.75);
+    const g14 = spData?.gold?.k14 || Math.round(g24 * 0.585);
+    msg += `│ 🥇 الذهب${getArrow(metals.gold, previousMetals.gold)}\n`;
+    msg += `│ 1 أوقية = ‎${formatNumber(metals.gold,2)} دولار\n`;
+    msg += `│ 1 غرام  = ‎${formatNumber(goldGram,2)} دولار\n`;
+    msg += `│ 1 غرام  = ‎${formatNumber(goldGram*rates.SAR,2)} ريال\n`;
+    msg += `│ 1 غرام  = ‎${formatNumber(goldGram*rates.IQD,0)} دينار\n`;
+    msg += `│\n│ ✨ عيار 24 = ‎${formatNumber(g24,0)} ل.س/غرام\n`;
+    msg += `│ ✨ عيار 21 = ‎${formatNumber(g21,0)} ل.س/غرام\n`;
+    msg += `│ ✨ عيار 18 = ‎${formatNumber(g18,0)} ل.س/غرام\n`;
+    msg += `│ ✨ عيار 14 = ‎${formatNumber(g14,0)} ل.س/غرام\n`;
+  }
+  if(metals.silver > 0) {
+    msg += `│\n│ 🥈 الفضة${getArrow(metals.silver, previousMetals.silver)}\n`;
+    msg += `│ 1 أوقية = ‎${formatNumber(metals.silver,2)} دولار\n`;
+    msg += `│ 1 غرام  = ‎${formatNumber(silverGram,4)} دولار\n`;
+    msg += `│ 1 غرام  = ‎${formatNumber(silverGram*rates.SAR,2)} ريال\n`;
+    msg += `│ 1 غرام  = ‎${formatNumber(silverGram*sypUSD,0)} ل.س\n`;
+    msg += `│ 1 غرام  = ‎${formatNumber(silverGram*rates.IQD,0)} دينار\n`;
   }
   msg += `└─────────────────────\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n\n`;
   msg += `⛽ <b>أسعار الوقود والطاقة في سوريا</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ ⛽ بنزين 95  | ‎${formatNumber(fuel.gasoline95,0)} ل.س/لتر\n`;
-  msg += `│ ⛽ بنزين 90  | ‎${formatNumber(fuel.gasoline90,0)} ل.س/لتر\n`;
-  msg += `│ 🚛 مازوت    | ‎${formatNumber(fuel.diesel,0)} ل.س/لتر\n`;
-  msg += `│ 🏠 غاز منزلي | ‎${formatNumber(fuel.gas_home,0)} ل.س/أسطوانة\n`;
-  msg += `│ 🏭 غاز صناعي | ‎${formatNumber(fuel.gas_industrial,0)} ل.س/أسطوانة\n`;
+  msg += `│ ⛽ بنزين 95      | ‎${formatNumber(fuel.gasoline95,0)} ل.س/لتر\n`;
+  msg += `│ ⛽ بنزين 90      | ‎${formatNumber(fuel.gasoline90,0)} ل.س/لتر\n`;
+  msg += `│ 🚛 مازوت        | ‎${formatNumber(fuel.diesel,0)} ل.س/لتر\n`;
+  msg += `│ 🏠 غاز منزلي    | ‎${formatNumber(fuel.gas_home,0)} ل.س/أسطوانة\n`;
+  msg += `│ 🏭 غاز صناعي    | ‎${formatNumber(fuel.gas_industrial,0)} ل.س/أسطوانة\n`;
   msg += `│ 💡 كهرباء منزلية | ${fuel.elec_home}\n`;
   msg += `│ 🏭 كهرباء صناعية | ${fuel.elec_industrial}\n`;
   msg += `└─────────────────────\n\n`;
