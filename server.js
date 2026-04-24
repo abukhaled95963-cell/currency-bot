@@ -235,75 +235,35 @@ async function buildMessage(period) {
   msg += `📅 ${now}\n`;
   msg += `━━━━━━━━━━━━━━━\n\n`;
 
+  const sypMid = rates.SYP;
+  const sypBuy = Math.round(sypMid * 0.993);
+  const sypSell = Math.round(sypMid * 1.007);
   msg += `🇸🇾 <b>الليرة السورية</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 1 دولار = ${formatNumber(rates.SYP, 0)} ل.س${getArrow(rates.SYP, previousRates.SYP)}\n`;
-  if(EUR) msg += `│ 🇪🇺 1 يورو  = ${formatNumber(rates.SYP / EUR, 0)} ل.س\n`;
-  if(TRY) msg += `│ 🇹🇷 1 ليرة  = ${formatNumber(rates.SYP / TRY, 0)} ل.س\n`;
-  msg += `│ 🇸🇦 1 ريال  = ${formatNumber(rates.SYP / rates.SAR, 0)} ل.س\n`;
+  msg += `│ 🇺🇸 1 دولار  | شراء: ${formatNumber(sypBuy,0)} | بيع: ${formatNumber(sypSell,0)} ل.س${getArrow(rates.SYP, previousRates.SYP)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1 يورو   | شراء: ${formatNumber(Math.round(sypMid/EUR*0.993),0)} | بيع: ${formatNumber(Math.round(sypMid/EUR*1.007),0)} ل.س\n`;
+  if(TRY) msg += `│ 🇹🇷 1 ليرة   | شراء: ${formatNumber(sypMid/TRY*0.993,1)} | بيع: ${formatNumber(sypMid/TRY*1.007,1)} ل.س\n`;
+  msg += `│ 🇸🇦 1 ريال   | شراء: ${formatNumber(Math.round(sypMid/rates.SAR*0.993),0)} | بيع: ${formatNumber(Math.round(sypMid/rates.SAR*1.007),0)} ل.س\n`;
   msg += `└─────────────────────\n\n`;
 
+  const sarMid = rates.SAR;
   msg += `🇸🇦 <b>الريال السعودي</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 1 دولار = ${formatNumber(rates.SAR, 4)} ر.س${getArrow(rates.SAR, previousRates.SAR)}\n`;
-  if(EUR) msg += `│ 🇪🇺 1 يورو  = ${formatNumber(rates.SAR / EUR, 4)} ر.س\n`;
-  if(TRY) msg += `│ 🇹🇷 1 ليرة  = ${formatNumber(rates.SAR / TRY, 4)} ر.س\n`;
-  msg += `│ 🇮🇶 1 دينار = ${formatNumber(rates.SAR / rates.IQD, 6)} ر.س\n`;
+  msg += `│ 🇺🇸 1 دولار  | شراء: ${formatNumber(sarMid*0.9993,4)} | بيع: ${formatNumber(sarMid*1.0007,4)} ر.س${getArrow(rates.SAR, previousRates.SAR)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1 يورو   | شراء: ${formatNumber(sarMid/EUR*0.993,4)} | بيع: ${formatNumber(sarMid/EUR*1.007,4)} ر.س\n`;
+  if(TRY) msg += `│ 🇹🇷 1 ليرة   | شراء: ${formatNumber(sarMid/TRY*0.993,4)} | بيع: ${formatNumber(sarMid/TRY*1.007,4)} ر.س\n`;
+  msg += `│ 🇮🇶 1 دينار  | شراء: ${formatNumber(sarMid/rates.IQD*0.993,6)} | بيع: ${formatNumber(sarMid/rates.IQD*1.007,6)} ر.س\n`;
   msg += `└─────────────────────\n\n`;
 
+  const iqdMid = rates.IQD;
+  const iqdBuy = Math.round(iqdMid * 0.997);
+  const iqdSell = Math.round(iqdMid * 1.003);
   msg += `🇮🇶 <b>الدينار العراقي</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 1 دولار = ${formatNumber(rates.IQD, 0)} د.ع${getArrow(rates.IQD, previousRates.IQD)}\n`;
-  if(EUR) msg += `│ 🇪🇺 1 يورو  = ${formatNumber(rates.IQD / EUR, 0)} د.ع\n`;
-  if(TRY) msg += `│ 🇹🇷 1 ليرة  = ${formatNumber(rates.IQD / TRY, 0)} د.ع\n`;
-  msg += `│ 🇸🇦 1 ريال  = ${formatNumber(rates.IQD / rates.SAR, 0)} د.ع\n`;
-  msg += `└─────────────────────\n\n`;
-
-  const [syriaRates, iraqRates] = await Promise.allSettled([
-    getSyrianOfficialRates(),
-    getIraqiOfficialRates()
-  ]);
-  const syriaOfficial = syriaRates.status === 'fulfilled' ? syriaRates.value : null;
-  const iraqOfficial = iraqRates.status === 'fulfilled' ? iraqRates.value : null;
-
-  msg += `━━━━━━━━━━━━━━━\n\n`;
-  msg += `🏦 <b>الأسعار الرسمية (شراء / بيع)</b>\n\n`;
-
-  if(syriaOfficial && syriaOfficial.USD) {
-    msg += `🇸🇾 <b>مصرف سوريا المركزي</b>\n`;
-    msg += `┌─────────────────────\n`;
-    msg += `│ 🇺🇸 دولار  | شراء: ${formatNumber(syriaOfficial.USD.buy,0)} | بيع: ${formatNumber(syriaOfficial.USD.sell,0)} ل.س\n`;
-    if(syriaOfficial.EUR) msg += `│ 🇪🇺 يورو   | شراء: ${formatNumber(syriaOfficial.EUR.buy,0)} | بيع: ${formatNumber(syriaOfficial.EUR.sell,0)} ل.س\n`;
-    if(syriaOfficial.TRY) msg += `│ 🇹🇷 تركي   | شراء: ${formatNumber(syriaOfficial.TRY.buy,0)} | بيع: ${formatNumber(syriaOfficial.TRY.sell,0)} ل.س\n`;
-    if(syriaOfficial.SAR) msg += `│ 🇸🇦 ريال   | شراء: ${formatNumber(syriaOfficial.SAR.buy,0)} | بيع: ${formatNumber(syriaOfficial.SAR.sell,0)} ل.س\n`;
-    msg += `└─────────────────────\n\n`;
-  } else {
-    msg += `🇸🇾 <b>مصرف سوريا المركزي</b>\n`;
-    msg += `┌─────────────────────\n`;
-    msg += `│ 🇺🇸 دولار  | شراء: 11,000 | بيع: 11,100 ل.س\n`;
-    msg += `│ 🇪🇺 يورو   | شراء: 12,849 | بيع: 12,978 ل.س\n`;
-    msg += `│ 🇹🇷 تركي   | شراء: 247 | بيع: 249 ل.س\n`;
-    msg += `└─────────────────────\n\n`;
-  }
-
-  if(iraqOfficial && iraqOfficial.USD) {
-    msg += `🇮🇶 <b>البنك المركزي العراقي</b>\n`;
-    msg += `┌─────────────────────\n`;
-    msg += `│ 🇺🇸 دولار  | شراء: ${formatNumber(iraqOfficial.USD.buy,0)} | بيع: ${formatNumber(iraqOfficial.USD.sell,0)} د.ع\n`;
-    if(iraqOfficial.EUR) msg += `│ 🇪🇺 يورو   | شراء: ${formatNumber(iraqOfficial.EUR.buy,0)} | بيع: ${formatNumber(iraqOfficial.EUR.sell,0)} د.ع\n`;
-    if(iraqOfficial.TRY) msg += `│ 🇹🇷 تركي   | شراء: ${formatNumber(iraqOfficial.TRY.buy,0)} | بيع: ${formatNumber(iraqOfficial.TRY.sell,0)} د.ع\n`;
-    msg += `└─────────────────────\n\n`;
-  } else {
-    msg += `🇮🇶 <b>البنك المركزي العراقي</b>\n`;
-    msg += `┌─────────────────────\n`;
-    msg += `│ 🇺🇸 دولار  | شراء: 1,305 | بيع: 1,310 د.ع\n`;
-    msg += `└─────────────────────\n\n`;
-  }
-
-  msg += `🇸🇦 <b>مؤسسة النقد السعودي (SAMA)</b>\n`;
-  msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 دولار  | شراء: 3.7498 | بيع: 3.7502 ر.س\n`;
-  msg += `│ (مربوط رسمياً بالدولار)\n`;
+  msg += `│ 🇺🇸 1 دولار  | شراء: ${formatNumber(iqdBuy,0)} | بيع: ${formatNumber(iqdSell,0)} د.ع${getArrow(rates.IQD, previousRates.IQD)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1 يورو   | شراء: ${formatNumber(Math.round(iqdMid/EUR*0.997),0)} | بيع: ${formatNumber(Math.round(iqdMid/EUR*1.003),0)} د.ع\n`;
+  if(TRY) msg += `│ 🇹🇷 1 ليرة   | شراء: ${formatNumber(Math.round(iqdMid/TRY*0.997),0)} | بيع: ${formatNumber(Math.round(iqdMid/TRY*1.003),0)} د.ع\n`;
+  msg += `│ 🇸🇦 1 ريال   | شراء: ${formatNumber(Math.round(iqdMid/rates.SAR*0.997),0)} | بيع: ${formatNumber(Math.round(iqdMid/rates.SAR*1.003),0)} د.ع\n`;
   msg += `└─────────────────────\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n\n`;
