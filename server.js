@@ -74,155 +74,63 @@ async function getRates() {
 const cheerio = require('cheerio');
 
 async function scrapeSPToday() {
-  try {
-    const r = await axios.get('https://sp-today.com/en', {
-      timeout: 15000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'ar,en;q=0.9'
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'text/html,application/xhtml+xml',
+    'Accept-Language': 'ar,en;q=0.9'
+  };
+  const data = { currencies: {}, gold: {} };
+
+  async function fetchCurrencyPage(url, code, name, minVal, maxVal) {
+    try {
+      const r = await axios.get(url, {timeout:10000, headers});
+      const $ = cheerio.load(r.data);
+      let buy = 0, sell = 0;
+      $('*').each((i, el) => {
+        if(buy && sell) return;
+        const text = $(el).text().trim();
+        if($(el).children().length > 2) return;
+        const nums = text.match(/[\d,]+/g);
+        if(!nums) return;
+        const validNums = nums.map(n => parseInt(n.replace(/,/g,''))).filter(n => n >= minVal && n <= maxVal);
+        if(validNums.length >= 2 && !buy) { buy = validNums[0]; sell = validNums[1]; }
+        else if(validNums.length === 1 && !buy) { buy = validNums[0]; sell = Math.round(validNums[0]*1.007); }
+      });
+      if(buy > 0) {
+        data.currencies[code] = {buy, sell, name};
+        console.log(code, 'scraped:', buy, '/', sell);
       }
-    });
-    const $ = cheerio.load(r.data);
-    const data = {
-      currencies: {},
-      gold: {},
-      fuel: {}
-    };
-
-    const currencySelectors = [
-      '.currency-value', '.rate-value', '.exchange-rate',
-      '[class*="currency"]', '[class*="rate"]', '[class*="price"]'
-    ];
-
-    let foundUSD = false;
-    $('*').each((i, el) => {
-      if(foundUSD) return;
-      const text = $(el).text().trim();
-      const children = $(el).children().length;
-      if(children > 5) return;
-
-      if((text.includes('دولار') || text.includes('Dollar') || text.includes('USD') || text.includes('$')) && children < 3) {
-        const nums = text.match(/[\d,]+\.?\d*/g);
-        if(nums) {
-          const validNums = nums.map(n => parseFloat(n.replace(/,/g,''))).filter(n => n > 5000 && n < 200000);
-          if(validNums.length >= 2) {
-            data.currencies.USD = {buy: validNums[0], sell: validNums[1], name:'دولار'};
-            foundUSD = true;
-          } else if(validNums.length === 1) {
-            data.currencies.USD = {buy: validNums[0], sell: Math.round(validNums[0]*1.007), name:'دولار'};
-            foundUSD = true;
-          }
-        }
-      }
-    });
-
-    let foundEUR = false;
-    $('*').each((i, el) => {
-      if(foundEUR) return;
-      const text = $(el).text().trim();
-      const children = $(el).children().length;
-      if(children > 5) return;
-      if((text.includes('يورو') || text.includes('Euro') || text.includes('EUR') || text.includes('€')) && children < 3) {
-        const nums = text.match(/[\d,]+\.?\d*/g);
-        if(nums) {
-          const validNums = nums.map(n => parseFloat(n.replace(/,/g,''))).filter(n => n > 5000 && n < 250000);
-          if(validNums.length >= 2) {
-            data.currencies.EUR = {buy: validNums[0], sell: validNums[1], name:'يورو'};
-            foundEUR = true;
-          } else if(validNums.length === 1) {
-            data.currencies.EUR = {buy: validNums[0], sell: Math.round(validNums[0]*1.007), name:'يورو'};
-            foundEUR = true;
-          }
-        }
-      }
-    });
-
-    let foundTRY = false;
-    $('*').each((i, el) => {
-      if(foundTRY) return;
-      const text = $(el).text().trim();
-      const children = $(el).children().length;
-      if(children > 5) return;
-      if((text.includes('تركي') || text.includes('Turkish') || text.includes('TRY') || text.includes('₺')) && children < 3) {
-        const nums = text.match(/[\d,]+\.?\d*/g);
-        if(nums) {
-          const validNums = nums.map(n => parseFloat(n.replace(/,/g,''))).filter(n => n > 100 && n < 10000);
-          if(validNums.length >= 2) {
-            data.currencies.TRY = {buy: validNums[0], sell: validNums[1], name:'ليرة تركية'};
-            foundTRY = true;
-          } else if(validNums.length === 1) {
-            data.currencies.TRY = {buy: validNums[0], sell: Math.round(validNums[0]*1.007), name:'ليرة تركية'};
-            foundTRY = true;
-          }
-        }
-      }
-    });
-
-    let foundSAR = false;
-    $('*').each((i, el) => {
-      if(foundSAR) return;
-      const text = $(el).text().trim();
-      const children = $(el).children().length;
-      if(children > 5) return;
-      if((text.includes('سعودي') || text.includes('Saudi') || text.includes('SAR') || text.includes('﷼')) && children < 3) {
-        const nums = text.match(/[\d,]+\.?\d*/g);
-        if(nums) {
-          const validNums = nums.map(n => parseFloat(n.replace(/,/g,''))).filter(n => n > 1000 && n < 50000);
-          if(validNums.length >= 2) {
-            data.currencies.SAR = {buy: validNums[0], sell: validNums[1], name:'ريال سعودي'};
-            foundSAR = true;
-          } else if(validNums.length === 1) {
-            data.currencies.SAR = {buy: validNums[0], sell: Math.round(validNums[0]*1.007), name:'ريال سعودي'};
-            foundSAR = true;
-          }
-        }
-      }
-    });
-
-    const apiR = await axios.get('https://sp-today.com/api/currencies', {
-      timeout: 10000,
-      headers: {'User-Agent': 'Mozilla/5.0'}
-    }).catch(() => null);
-
-    if(apiR && apiR.data) {
-      const apiData = apiR.data;
-      if(Array.isArray(apiData)) {
-        apiData.forEach(item => {
-          if(item.code === 'USD' || item.symbol === '$') data.currencies.USD = {buy: item.buy || item.rate, sell: item.sell || item.rate, name:'دولار'};
-          if(item.code === 'EUR' || item.symbol === '€') data.currencies.EUR = {buy: item.buy || item.rate, sell: item.sell || item.rate, name:'يورو'};
-          if(item.code === 'TRY') data.currencies.TRY = {buy: item.buy || item.rate, sell: item.sell || item.rate, name:'ليرة تركية'};
-          if(item.code === 'SAR') data.currencies.SAR = {buy: item.buy || item.rate, sell: item.sell || item.rate, name:'ريال سعودي'};
-        });
-      }
-    }
-
-    $('*').each((i, el) => {
-      const text = $(el).text().trim();
-      const children = $(el).children().length;
-      if(children > 3) return;
-      const val = parseFloat(text.replace(/[^0-9.]/g,''));
-      if(val > 500000 && val < 10000000) {
-        if(text.includes('عيار 24') || text.includes('24')) {
-          if(!data.gold.k24 || Math.abs(val - 2400000) < Math.abs(data.gold.k24 - 2400000)) data.gold.k24 = val;
-        }
-        if(text.includes('عيار 21') || text.includes('21')) {
-          if(!data.gold.k21 || Math.abs(val - 2100000) < Math.abs(data.gold.k21 - 2100000)) data.gold.k21 = val;
-        }
-        if(text.includes('عيار 18') || text.includes('18')) {
-          if(!data.gold.k18 || Math.abs(val - 1800000) < Math.abs(data.gold.k18 - 1800000)) data.gold.k18 = val;
-        }
-        if(text.includes('عيار 14') || text.includes('14')) {
-          if(!data.gold.k14 || Math.abs(val - 1400000) < Math.abs(data.gold.k14 - 1400000)) data.gold.k14 = val;
-        }
-      }
-    });
-
-    console.log('SP Today scraped:', JSON.stringify(data.currencies), 'Gold:', JSON.stringify(data.gold));
-    return data;
-  } catch(e) {
-    console.error('SP Today scrape error:', e.message);
-    return null;
+    } catch(e) { console.error('Scrape error '+code+':', e.message); }
   }
+
+  async function fetchGoldPage(url) {
+    try {
+      const r = await axios.get(url, {timeout:10000, headers});
+      const $ = cheerio.load(r.data);
+      $('*').each((i, el) => {
+        const text = $(el).text().trim();
+        if($(el).children().length > 3) return;
+        const val = parseInt(text.replace(/[^0-9]/g,''));
+        if(val > 800000 && val < 8000000) {
+          if(text.includes('24') && !data.gold.k24) data.gold.k24 = val;
+          else if(text.includes('21') && !data.gold.k21) data.gold.k21 = val;
+          else if(text.includes('18') && !data.gold.k18) data.gold.k18 = val;
+          else if(text.includes('14') && !data.gold.k14) data.gold.k14 = val;
+        }
+      });
+    } catch(e) { console.error('Gold scrape error:', e.message); }
+  }
+
+  await Promise.allSettled([
+    fetchCurrencyPage('https://sp-today.com/en/currency/us_dollar/city/damascus', 'USD', 'دولار', 10000, 100000),
+    fetchCurrencyPage('https://sp-today.com/en/currency/euro/city/damascus', 'EUR', 'يورو', 10000, 150000),
+    fetchCurrencyPage('https://sp-today.com/en/currency/turkish_lira/city/damascus', 'TRY', 'ليرة تركية', 100, 8000),
+    fetchCurrencyPage('https://sp-today.com/en/currency/saudi_riyal/city/damascus', 'SAR', 'ريال سعودي', 1000, 50000),
+    fetchGoldPage('https://sp-today.com/en/gold/city/damascus')
+  ]);
+
+  console.log('SP Today final:', JSON.stringify(data));
+  return data;
 }
 
 function getSyriaFuelPrices() {
