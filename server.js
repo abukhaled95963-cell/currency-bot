@@ -5,7 +5,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const CHANNEL_ID = process.env.CHANNEL_ID || '';
 const EXCHANGE_API_KEY = process.env.EXCHANGE_API_KEY || '';
 
-let previousRates = {SYP: 0, SAR: 0, IQD: 0};
+let previousRates = {SYP: 0, SAR: 0, IQD: 0, EUR: 0, TRY: 0};
 let previousMetals = {gold: 0, silver: 0};
 
 async function getRates() {
@@ -14,9 +14,11 @@ async function getRates() {
     const r = await axios.get(`https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}/latest/USD`, {timeout:10000});
     const rates = r.data.conversion_rates;
     return {
-      SYP: rates.SYP || 0,  // Syrian Pound
-      SAR: rates.SAR || 0,  // Saudi Riyal
-      IQD: rates.IQD || 0,  // Iraqi Dinar
+      SYP: rates.SYP || 0,
+      SAR: rates.SAR || 0,
+      IQD: rates.IQD || 0,
+      EUR: rates.EUR || 0,
+      TRY: rates.TRY || 0,
       USD: 1
     };
   } catch(e) {
@@ -92,53 +94,67 @@ async function buildMessage(period) {
     update: '🔔 تحديث فوري - تغير في الأسعار'
   }[period] || '📊 تحديث الأسعار';
 
-  // Calculate gold price per gram in USD
   const goldGram = metals.gold ? (metals.gold / 31.1035) : 0;
   const silverGram = metals.silver ? (metals.silver / 31.1035) : 0;
 
-  // Gold in Arabic currencies
-  const goldSAR = goldGram * rates.SAR;
-  const goldSYP = goldGram * rates.SYP;
-  const goldIQD = goldGram * rates.IQD;
+  const EUR = rates.EUR || 0;
+  const TRY = rates.TRY || 0;
+
+  function crossRate(base, target) {
+    if(!base || !target) return 0;
+    return target / base;
+  }
 
   let msg = `${periodLabel}\n`;
   msg += `📅 ${now}\n`;
   msg += `━━━━━━━━━━━━━━━\n\n`;
 
-  msg += `💱 <b>أسعار الصرف مقابل الدولار 🇺🇸</b>\n\n`;
+  msg += `🇸🇾 <b>الليرة السورية</b>\n`;
+  msg += `┌─────────────────────\n`;
+  msg += `│ 🇺🇸 دولار:  1 = <b>${formatNumber(rates.SYP, 0)}</b> ل.س${getArrow(rates.SYP, previousRates.SYP)}\n`;
+  if(EUR) msg += `│ 🇪🇺 يورو:   1 = <b>${formatNumber(rates.SYP / EUR, 0)}</b> ل.س\n`;
+  if(TRY) msg += `│ 🇹🇷 ليرة تركية: 1 = <b>${formatNumber(rates.SYP / TRY, 0)}</b> ل.س\n`;
+  msg += `│ 🇸🇦 ريال سعودي: 1 = <b>${formatNumber(rates.SYP / rates.SAR, 0)}</b> ل.س\n`;
+  msg += `└─────────────────────\n\n`;
 
-  msg += `🇸🇾 <b>الليرة السورية</b>${getArrow(rates.SYP, previousRates.SYP)}\n`;
-  msg += `1 دولار = <b>${formatNumber(rates.SYP, 0)}</b> ليرة\n\n`;
+  msg += `🇸🇦 <b>الريال السعودي</b>\n`;
+  msg += `┌─────────────────────\n`;
+  msg += `│ 🇺🇸 دولار:  1 = <b>${formatNumber(rates.SAR, 4)}</b> ر.س${getArrow(rates.SAR, previousRates.SAR)}\n`;
+  if(EUR) msg += `│ 🇪🇺 يورو:   1 = <b>${formatNumber(rates.SAR / EUR, 4)}</b> ر.س\n`;
+  if(TRY) msg += `│ 🇹🇷 ليرة تركية: 1 = <b>${formatNumber(rates.SAR / TRY, 4)}</b> ر.س\n`;
+  msg += `│ 1 ر.س = <b>${formatNumber(1/rates.SAR, 4)}</b> دولار\n`;
+  msg += `└─────────────────────\n\n`;
 
-  msg += `🇸🇦 <b>الريال السعودي</b>${getArrow(rates.SAR, previousRates.SAR)}\n`;
-  msg += `1 دولار = <b>${formatNumber(rates.SAR, 4)}</b> ريال\n`;
-  msg += `1 ريال = <b>${formatNumber(1/rates.SAR, 4)}</b> دولار\n\n`;
-
-  msg += `🇮🇶 <b>الدينار العراقي</b>${getArrow(rates.IQD, previousRates.IQD)}\n`;
-  msg += `1 دولار = <b>${formatNumber(rates.IQD, 0)}</b> دينار\n\n`;
+  msg += `🇮🇶 <b>الدينار العراقي</b>\n`;
+  msg += `┌─────────────────────\n`;
+  msg += `│ 🇺🇸 دولار:  1 = <b>${formatNumber(rates.IQD, 0)}</b> د.ع${getArrow(rates.IQD, previousRates.IQD)}\n`;
+  if(EUR) msg += `│ 🇪🇺 يورو:   1 = <b>${formatNumber(rates.IQD / EUR, 0)}</b> د.ع\n`;
+  if(TRY) msg += `│ 🇹🇷 ليرة تركية: 1 = <b>${formatNumber(rates.IQD / TRY, 0)}</b> د.ع\n`;
+  msg += `│ 🇸🇦 ريال سعودي: 1 = <b>${formatNumber(rates.IQD / rates.SAR, 0)}</b> د.ع\n`;
+  msg += `└─────────────────────\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n\n`;
 
-  msg += `🥇 <b>أسعار الذهب والفضة</b>\n\n`;
-
+  msg += `🥇 <b>الذهب والفضة</b>\n`;
+  msg += `┌─────────────────────\n`;
   if(metals.gold > 0) {
-    msg += `🥇 <b>الذهب</b>${getArrow(metals.gold, previousMetals.gold)}\n`;
-    msg += `الأوقية: <b>${formatNumber(metals.gold)}</b> دولار\n`;
-    msg += `الغرام: <b>${formatNumber(goldGram)}</b> دولار\n`;
-    msg += `الغرام بالريال 🇸🇦: <b>${formatNumber(goldSAR)}</b> ريال\n`;
-    msg += `الغرام بالليرة 🇸🇾: <b>${formatNumber(goldSYP, 0)}</b> ليرة\n`;
-    msg += `الغرام بالدينار 🇮🇶: <b>${formatNumber(goldIQD, 0)}</b> دينار\n\n`;
+    msg += `│ 🥇 الذهب${getArrow(metals.gold, previousMetals.gold)}\n`;
+    msg += `│ الأوقية: <b>${formatNumber(metals.gold)}</b> 🇺🇸\n`;
+    msg += `│ الغرام:  <b>${formatNumber(goldGram)}</b> 🇺🇸\n`;
+    msg += `│ الغرام:  <b>${formatNumber(goldGram * rates.SAR)}</b> 🇸🇦\n`;
+    msg += `│ الغرام:  <b>${formatNumber(goldGram * rates.SYP, 0)}</b> 🇸🇾\n`;
+    msg += `│ الغرام:  <b>${formatNumber(goldGram * rates.IQD, 0)}</b> 🇮🇶\n`;
   }
-
   if(metals.silver > 0) {
-    msg += `🥈 <b>الفضة</b>${getArrow(metals.silver, previousMetals.silver)}\n`;
-    msg += `الأوقية: <b>${formatNumber(metals.silver)}</b> دولار\n`;
-    msg += `الغرام: <b>${formatNumber(silverGram)}</b> دولار\n\n`;
+    msg += `│ 🥈 الفضة${getArrow(metals.silver, previousMetals.silver)}\n`;
+    msg += `│ الأوقية: <b>${formatNumber(metals.silver)}</b> 🇺🇸\n`;
+    msg += `│ الغرام:  <b>${formatNumber(silverGram)}</b> 🇺🇸\n`;
   }
+  msg += `└─────────────────────\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n`;
   msg += `🔄 تحديث فوري عند تغير الأسعار\n`;
-  msg += `📢 <a href="https://t.me/sr3_alyom">سعر اليوم</a>`;
+  msg += `📢 <a href="https://t.me/ExchangeMoment">سعر الصرف لحظة بلحظة</a>`;
 
   return msg;
 }
@@ -157,7 +173,7 @@ async function sendToChannel(period) {
 
     const newRates = await getRates();
     const newMetals = await getGoldSilver();
-    if(newRates) previousRates = {SYP: newRates.SYP, SAR: newRates.SAR, IQD: newRates.IQD};
+    if(newRates) previousRates = {SYP: newRates.SYP, SAR: newRates.SAR, IQD: newRates.IQD, EUR: newRates.EUR, TRY: newRates.TRY};
     if(newMetals) previousMetals = {gold: newMetals.gold, silver: newMetals.silver};
   } catch(e) {
     console.error('Send error:', e.message);
