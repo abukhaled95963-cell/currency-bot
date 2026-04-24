@@ -111,7 +111,8 @@ async function scrapeSPToday() {
         const text = $(el).text().trim();
         if($(el).children().length > 3) return;
         const val = parseInt(text.replace(/[^0-9]/g,''));
-        if(val > 800000 && val < 8000000) {
+        if(val > 500000 && val < 15000000) {
+          console.log('Gold candidate:', val, text.substring(0,50));
           if(text.includes('24') && !data.gold.k24) data.gold.k24 = val;
           else if(text.includes('21') && !data.gold.k21) data.gold.k21 = val;
           else if(text.includes('18') && !data.gold.k18) data.gold.k18 = val;
@@ -126,7 +127,9 @@ async function scrapeSPToday() {
     fetchCurrencyPage('https://sp-today.com/en/currency/euro/city/damascus', 'EUR', 'يورو', 10000, 150000),
     fetchCurrencyPage('https://sp-today.com/en/currency/turkish_lira/city/damascus', 'TRY', 'ليرة تركية', 100, 8000),
     fetchCurrencyPage('https://sp-today.com/en/currency/saudi_riyal/city/damascus', 'SAR', 'ريال سعودي', 1000, 50000),
-    fetchGoldPage('https://sp-today.com/en/gold/city/damascus')
+    fetchGoldPage('https://sp-today.com/en/gold/city/damascus'),
+    fetchGoldPage('https://sp-today.com/en/gold'),
+    fetchGoldPage('https://sp-today.com/ar/gold/city/damascus')
   ]);
 
   console.log('SP Today final:', JSON.stringify(data));
