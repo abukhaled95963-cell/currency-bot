@@ -155,26 +155,26 @@ async function buildMessage(period) {
 
   msg += `🇸🇾 <b>الليرة السورية</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 دولار:  1 = <b>${formatNumber(rates.SYP, 0)}</b> ل.س${getArrow(rates.SYP, previousRates.SYP)}\n`;
-  if(EUR) msg += `│ 🇪🇺 يورو:   1 = <b>${formatNumber(rates.SYP / EUR, 0)}</b> ل.س\n`;
-  if(TRY) msg += `│ 🇹🇷 ليرة تركية: 1 = <b>${formatNumber(rates.SYP / TRY, 0)}</b> ل.س\n`;
-  msg += `│ 🇸🇦 ريال سعودي: 1 = <b>${formatNumber(rates.SYP / rates.SAR, 0)}</b> ل.س\n`;
+  msg += `│ 🇺🇸 1$ = ${formatNumber(rates.SYP, 0)} S.P${getArrow(rates.SYP, previousRates.SYP)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1€ = ${formatNumber(rates.SYP / EUR, 0)} S.P\n`;
+  if(TRY) msg += `│ 🇹🇷 1₺ = ${formatNumber(rates.SYP / TRY, 0)} S.P\n`;
+  msg += `│ 🇸🇦 1﷼ = ${formatNumber(rates.SYP / rates.SAR, 0)} S.P\n`;
   msg += `└─────────────────────\n\n`;
 
   msg += `🇸🇦 <b>الريال السعودي</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 دولار:  1 = <b>${formatNumber(rates.SAR, 4)}</b> ر.س${getArrow(rates.SAR, previousRates.SAR)}\n`;
-  if(EUR) msg += `│ 🇪🇺 يورو:   1 = <b>${formatNumber(rates.SAR / EUR, 4)}</b> ر.س\n`;
-  if(TRY) msg += `│ 🇹🇷 ليرة تركية: 1 = <b>${formatNumber(rates.SAR / TRY, 4)}</b> ر.س\n`;
-  msg += `│ 1 ر.س = <b>${formatNumber(1/rates.SAR, 4)}</b> دولار\n`;
+  msg += `│ 🇺🇸 1$ = ${formatNumber(rates.SAR, 4)} SAR${getArrow(rates.SAR, previousRates.SAR)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1€ = ${formatNumber(rates.SAR / EUR, 4)} SAR\n`;
+  if(TRY) msg += `│ 🇹🇷 1₺ = ${formatNumber(rates.SAR / TRY, 4)} SAR\n`;
+  msg += `│ 🇮🇶 1IQD = ${formatNumber(rates.SAR / rates.IQD, 6)} SAR\n`;
   msg += `└─────────────────────\n\n`;
 
   msg += `🇮🇶 <b>الدينار العراقي</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 دولار:  1 = <b>${formatNumber(rates.IQD, 0)}</b> د.ع${getArrow(rates.IQD, previousRates.IQD)}\n`;
-  if(EUR) msg += `│ 🇪🇺 يورو:   1 = <b>${formatNumber(rates.IQD / EUR, 0)}</b> د.ع\n`;
-  if(TRY) msg += `│ 🇹🇷 ليرة تركية: 1 = <b>${formatNumber(rates.IQD / TRY, 0)}</b> د.ع\n`;
-  msg += `│ 🇸🇦 ريال سعودي: 1 = <b>${formatNumber(rates.IQD / rates.SAR, 0)}</b> د.ع\n`;
+  msg += `│ 🇺🇸 1$ = ${formatNumber(rates.IQD, 0)} IQD${getArrow(rates.IQD, previousRates.IQD)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1€ = ${formatNumber(rates.IQD / EUR, 0)} IQD\n`;
+  if(TRY) msg += `│ 🇹🇷 1₺ = ${formatNumber(rates.IQD / TRY, 0)} IQD\n`;
+  msg += `│ 🇸🇦 1﷼ = ${formatNumber(rates.IQD / rates.SAR, 0)} IQD\n`;
   msg += `└─────────────────────\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n\n`;
@@ -183,16 +183,21 @@ async function buildMessage(period) {
   msg += `┌─────────────────────\n`;
   if(metals.gold > 0) {
     msg += `│ 🥇 الذهب${getArrow(metals.gold, previousMetals.gold)}\n`;
-    msg += `│ الأوقية: <b>${formatNumber(metals.gold)}</b> 🇺🇸\n`;
-    msg += `│ الغرام:  <b>${formatNumber(goldGram)}</b> 🇺🇸\n`;
-    msg += `│ الغرام:  <b>${formatNumber(goldGram * rates.SAR)}</b> 🇸🇦\n`;
-    msg += `│ الغرام:  <b>${formatNumber(goldGram * rates.SYP, 0)}</b> 🇸🇾\n`;
-    msg += `│ الغرام:  <b>${formatNumber(goldGram * rates.IQD, 0)}</b> 🇮🇶\n`;
+    msg += `│ 1oz = ${formatNumber(metals.gold, 2)}$\n`;
+    msg += `│ 1g  = ${formatNumber(goldGram, 2)}$\n`;
+    msg += `│ 1g  = ${formatNumber(goldGram * rates.SAR, 2)}﷼\n`;
+    msg += `│ 1g  = ${formatNumber(goldGram * rates.SYP, 0)} S.P\n`;
+    msg += `│ 1g  = ${formatNumber(goldGram * rates.IQD, 0)} IQD\n`;
+    if(EUR) msg += `│ 1g  = ${formatNumber(goldGram / EUR, 2)}€\n`;
   }
   if(metals.silver > 0) {
-    msg += `│ 🥈 الفضة${getArrow(metals.silver, previousMetals.silver)}\n`;
-    msg += `│ الأوقية: <b>${formatNumber(metals.silver)}</b> 🇺🇸\n`;
-    msg += `│ الغرام:  <b>${formatNumber(silverGram)}</b> 🇺🇸\n`;
+    msg += `│\n│ 🥈 الفضة${getArrow(metals.silver, previousMetals.silver)}\n`;
+    msg += `│ 1oz = ${formatNumber(metals.silver, 2)}$\n`;
+    msg += `│ 1g  = ${formatNumber(silverGram, 4)}$\n`;
+    msg += `│ 1g  = ${formatNumber(silverGram * rates.SAR, 2)}﷼\n`;
+    msg += `│ 1g  = ${formatNumber(silverGram * rates.SYP, 0)} S.P\n`;
+    msg += `│ 1g  = ${formatNumber(silverGram * rates.IQD, 0)} IQD\n`;
+    if(EUR) msg += `│ 1g  = ${formatNumber(silverGram / EUR, 4)}€\n`;
   }
   msg += `└─────────────────────\n\n`;
 
