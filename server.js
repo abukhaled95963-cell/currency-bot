@@ -332,7 +332,20 @@ async function buildMessage(period, changedCurrencies) {
 
   msg += `🇸🇾 <b>الليرة السورية</b>\n`;
   msg += `┌─────────────────────\n`;
-  if(sypUSD > 0) msg += `│ 🇺🇸 1 دولار  | شراء: ‎${formatNumber(sypUSD,0)} | بيع: ‎${formatNumber(sypUSD_sell,0)} ل.س${getArrow(sypUSD, previousRates.SYP)}\n`;
+  msg += `│ 📌 الليرة الجديدة (بحذف صفرين)\n`;
+  msg += `│─────────────────────\n`;
+  if(sypUSD > 0) {
+    const newBuy = (sypUSD/100).toFixed(2);
+    const newSell = (sypUSD_sell/100).toFixed(2);
+    msg += `│ 🇺🇸 1 دولار  | شراء: ‎${newBuy} | بيع: ‎${newSell} ل.س.ج${getArrow(sypUSD, previousRates.SYP)}\n`;
+  }
+  if(sypEUR > 0) msg += `│ 🇪🇺 1 يورو   | شراء: ‎${(sypEUR/100).toFixed(2)} | بيع: ‎${(sypEUR_sell/100).toFixed(2)} ل.س.ج\n`;
+  if(sypTRY > 0) msg += `│ 🇹🇷 1 ليرة   | شراء: ‎${(sypTRY/100).toFixed(2)} | بيع: ‎${(sypTRY_sell/100).toFixed(2)} ل.س.ج\n`;
+  if(sypSAR > 0) msg += `│ 🇸🇦 1 ريال   | شراء: ‎${(sypSAR/100).toFixed(2)} | بيع: ‎${(sypSAR_sell/100).toFixed(2)} ل.س.ج\n`;
+  msg += `│─────────────────────\n`;
+  msg += `│ 📌 الليرة القديمة\n`;
+  msg += `│─────────────────────\n`;
+  if(sypUSD > 0) msg += `│ 🇺🇸 1 دولار  | شراء: ‎${formatNumber(sypUSD,0)} | بيع: ‎${formatNumber(sypUSD_sell,0)} ل.س\n`;
   if(sypEUR > 0) msg += `│ 🇪🇺 1 يورو   | شراء: ‎${formatNumber(sypEUR,0)} | بيع: ‎${formatNumber(sypEUR_sell,0)} ل.س\n`;
   if(sypTRY > 0) msg += `│ 🇹🇷 1 ليرة   | شراء: ‎${formatNumber(sypTRY,0)} | بيع: ‎${formatNumber(sypTRY_sell,0)} ل.س\n`;
   if(sypSAR > 0) msg += `│ 🇸🇦 1 ريال   | شراء: ‎${formatNumber(sypSAR,0)} | بيع: ‎${formatNumber(sypSAR_sell,0)} ل.س\n`;
@@ -369,10 +382,10 @@ async function buildMessage(period, changedCurrencies) {
     msg += `│ 1 غرام  = ‎${formatNumber(goldGram,2)} دولار\n`;
     msg += `│ 1 غرام  = ‎${formatNumber(goldGram*rates.SAR,2)} ريال\n`;
     msg += `│ 1 غرام  = ‎${formatNumber(goldGram*rates.IQD,0)} دينار\n`;
-    msg += `│\n│ ✨ عيار 24 = ‎${formatNumber(g24,0)} ل.س/غرام\n`;
-    msg += `│ ✨ عيار 21 = ‎${formatNumber(g21,0)} ل.س/غرام\n`;
-    msg += `│ ✨ عيار 18 = ‎${formatNumber(g18,0)} ل.س/غرام\n`;
-    msg += `│ ✨ عيار 14 = ‎${formatNumber(g14,0)} ل.س/غرام\n`;
+    msg += `│\n│ ✨ عيار 24 = ‎${formatNumber(g24,0)} ل.س (${(g24/100).toFixed(0)} ل.س.ج)\n`;
+    msg += `│ ✨ عيار 21 = ‎${formatNumber(g21,0)} ل.س (${(g21/100).toFixed(0)} ل.س.ج)\n`;
+    msg += `│ ✨ عيار 18 = ‎${formatNumber(g18,0)} ل.س (${(g18/100).toFixed(0)} ل.س.ج)\n`;
+    msg += `│ ✨ عيار 14 = ‎${formatNumber(g14,0)} ل.س (${(g14/100).toFixed(0)} ل.س.ج)\n`;
   }
   if(metals.silver > 0) {
     msg += `│\n│ 🥈 الفضة${getArrow(metals.silver, previousMetals.silver)}\n`;
