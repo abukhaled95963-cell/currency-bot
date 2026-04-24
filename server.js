@@ -1,9 +1,53 @@
 const axios = require('axios');
 const cron = require('node-cron');
 
+const VERSION = '1.2.0';
+
+const fs = require('fs');
+const SETTINGS_FILE = './settings.json';
+
+function getSetting(key, defaultVal='') {
+  try {
+    const data = JSON.parse(fs.readFileSync(SETTINGS_FILE,'utf8'));
+    return data[key] || defaultVal;
+  } catch(e) { return defaultVal; }
+}
+
+function setSetting(key, value) {
+  try {
+    let data = {};
+    try { data = JSON.parse(fs.readFileSync(SETTINGS_FILE,'utf8')); } catch(e) {}
+    data[key] = value;
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(data, null, 2));
+  } catch(e) { console.error('Settings error:', e.message); }
+}
+
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '';
+
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const CHANNEL_ID = process.env.CHANNEL_ID || '';
+
+function getChannels() {
+  const extra = process.env.EXTRA_CHANNELS || '';
+  const channels = [CHANNEL_ID];
+  if(extra) extra.split(',').forEach(c => { if(c.trim()) channels.push(c.trim()); });
+  const dbChannels = getSetting ? getSetting('extra_channels','') : '';
+  if(dbChannels) dbChannels.split(',').forEach(c => { if(c.trim()) channels.push(c.trim()); });
+  return [...new Set(channels.filter(c => c))];
+}
+
 const EXCHANGE_API_KEY = process.env.EXCHANGE_API_KEY || '';
+
+async function notifyUpdate(changes) {
+  if(!ADMIN_CHAT_ID || !BOT_TOKEN) return;
+  try {
+    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      chat_id: ADMIN_CHAT_ID,
+      text: `🚀 <b>تحديث جديد للبوت</b>\n\n📦 الإصدار: <b>${VERSION}</b>\n\n📝 التحديثات:\n${changes}\n\n⏰ ${new Date().toLocaleString('ar-SA',{timeZone:'Asia/Riyadh'})}`,
+      parse_mode: 'HTML'
+    });
+  } catch(e) { console.error('Notify error:', e.message); }
+}
 
 let previousRates = {SYP: 0, SAR: 0, IQD: 0, EUR: 0, TRY: 0};
 let previousMetals = {gold: 0, silver: 0};
@@ -164,12 +208,19 @@ async function sendToChannel(period) {
     const msg = await buildMessage(period);
     if(!msg) { console.log('Failed to build message'); return; }
 
-    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-      chat_id: CHANNEL_ID,
-      text: msg,
-      parse_mode: 'HTML'
-    });
-    console.log('Sent', period, 'update to channel');
+    const channels = getChannels();
+    for(const ch of channels) {
+      try {
+        await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+          chat_id: ch,
+          text: msg,
+          parse_mode: 'HTML'
+        });
+        console.log('Sent', period, 'to', ch);
+      } catch(e) {
+        console.error('Failed to send to', ch, e.message);
+      }
+    }
 
     const newRates = await getRates();
     const newMetals = await getGoldSilver();
@@ -217,7 +268,115 @@ app.get('/send/:period', async(req,res) => {
   res.json({sent: true});
 });
 
+let botOffset = 0;
+
+async function sendMsg(chatId, text, keyboard) {
+  const body = {chat_id: chatId, text: text, parse_mode: 'HTML'};
+  if(keyboard) body.reply_markup = {inline_keyboard: keyboard};
+  await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, body);
+}
+
+async function pollBot() {
+  if(!BOT_TOKEN || !ADMIN_CHAT_ID) return;
+  try {
+    const r = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${botOffset}&timeout=5&limit=10`, {timeout:10000});
+    if(r.data.ok && r.data.result.length) {
+      for(const update of r.data.result) {
+        botOffset = update.update_id + 1;
+        const msg = update.message;
+        const cb = update.callback_query;
+        const chatId = msg ? msg.chat.id : cb ? cb.message.chat.id : null;
+        if(!chatId || String(chatId) !== String(ADMIN_CHAT_ID)) continue;
+        if(cb) {
+          await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {callback_query_id: cb.id});
+        }
+        const text = msg ? (msg.text||'') : (cb ? cb.data : '');
+        await handleCommand(chatId, text);
+      }
+    }
+  } catch(e) {}
+}
+
+async function handleCommand(chatId, text) {
+  const awaiting = getSetting('awaiting','');
+
+  if(text === '/start' || text === 'main') {
+    await sendMsg(chatId,
+      `🤖 <b>بوت سعر الصرف لحظة بلحظة</b>\n📦 الإصدار: ${VERSION}\n\nاختر أمراً:`,
+      [[{text:'💱 الأسعار الآن', callback_data:'prices_now'},{text:'📢 اختبار الإرسال', callback_data:'test_send'}],
+       [{text:'📋 قنوات النشر', callback_data:'manage_channels'},{text:'ℹ️ معلومات', callback_data:'bot_info'}]]);
+
+  } else if(text === 'prices_now') {
+    await sendMsg(chatId, '🔄 جاري جلب الأسعار...');
+    try {
+      const msg = await buildMessage('update');
+      if(msg) await sendMsg(chatId, msg);
+      else await sendMsg(chatId, '❌ تعذر جلب الأسعار');
+    } catch(e) { await sendMsg(chatId, '❌ خطأ: '+e.message); }
+
+  } else if(text === 'test_send') {
+    await sendMsg(chatId, '🔄 جاري إرسال تحديث تجريبي للقنوات...');
+    await sendToChannel('update');
+    const channels = getChannels();
+    await sendMsg(chatId, '✅ تم الإرسال لـ '+channels.length+' قناة:\n'+channels.join('\n'),
+      [[{text:'🔙 رجوع', callback_data:'main'}]]);
+
+  } else if(text === 'manage_channels') {
+    const channels = getChannels();
+    let msg = '📋 <b>قنوات النشر</b>\n\n';
+    channels.forEach((c,i) => { msg += (i+1)+'. '+c+'\n'; });
+    await sendMsg(chatId, msg,
+      [[{text:'➕ إضافة قناة', callback_data:'add_channel'},{text:'🗑️ حذف قناة', callback_data:'del_channel'}],
+       [{text:'🔙 رجوع', callback_data:'main'}]]);
+
+  } else if(text === 'add_channel') {
+    setSetting('awaiting','add_channel');
+    await sendMsg(chatId, '📢 أرسل معرف القناة الجديدة:\nمثال: @mychannel أو -100123456789',
+      [[{text:'❌ إلغاء', callback_data:'manage_channels'}]]);
+
+  } else if(text === 'del_channel') {
+    const extra = getSetting('extra_channels','');
+    const channels = extra ? extra.split(',').filter(c=>c.trim()) : [];
+    if(!channels.length) { await sendMsg(chatId, '❌ لا توجد قنوات إضافية للحذف', [[{text:'🔙 رجوع', callback_data:'manage_channels'}]]); return; }
+    const keyboard = channels.map((c,i) => [{text:'🗑️ '+c, callback_data:'delch_'+i}]);
+    keyboard.push([{text:'🔙 رجوع', callback_data:'manage_channels'}]);
+    await sendMsg(chatId, 'اختر القناة للحذف:', keyboard);
+
+  } else if(text.startsWith('delch_')) {
+    const idx = parseInt(text.replace('delch_',''));
+    const extra = getSetting('extra_channels','');
+    const channels = extra.split(',').filter(c=>c.trim());
+    const removed = channels.splice(idx,1);
+    setSetting('extra_channels', channels.join(','));
+    await sendMsg(chatId, '✅ تم حذف '+removed[0], [[{text:'🔙 قنوات النشر', callback_data:'manage_channels'}]]);
+
+  } else if(text === 'bot_info') {
+    const channels = getChannels();
+    await sendMsg(chatId,
+      `ℹ️ <b>معلومات البوت</b>\n\nالإصدار: ${VERSION}\nعدد القنوات: ${channels.length}\nالتحديث: كل ساعة أو عند تغير الأسعار\nأوقات النشر الثابتة: 7ص، 12ظ، 9م`,
+      [[{text:'🔙 رجوع', callback_data:'main'}]]);
+
+  } else {
+    if(awaiting === 'add_channel') {
+      setSetting('awaiting','');
+      const ch = text.trim();
+      const extra = getSetting('extra_channels','');
+      const channels = extra ? extra.split(',').filter(c=>c.trim()) : [];
+      if(channels.includes(ch)) { await sendMsg(chatId, '⚠️ القناة موجودة مسبقاً'); return; }
+      channels.push(ch);
+      setSetting('extra_channels', channels.join(','));
+      await sendMsg(chatId, '✅ تمت إضافة '+ch+'\nإجمالي القنوات: '+(channels.length+1),
+        [[{text:'🔙 قنوات النشر', callback_data:'manage_channels'}]]);
+    }
+  }
+}
+
+setInterval(pollBot, 2000);
+
 app.listen(PORT, () => console.log('Currency bot running on port', PORT));
 
 // Send immediately on startup for testing
-setTimeout(() => sendToChannel('morning'), 5000);
+setTimeout(async () => {
+  await notifyUpdate('• عرض موحد للعملات مع اليورو والليرة التركية\n• أرقام إنجليزية موحدة\n• سهم أخضر/أحمر عند تغير السعر\n• نشرة ساعية ذكية\n• إدارة قنوات متعددة\n• أوامر تحكم للمسؤول');
+  await sendToChannel('morning');
+}, 5000);
