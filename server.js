@@ -332,7 +332,7 @@ async function buildMessage(period, changedCurrencies) {
 
   msg += `🇸🇾 <b>الليرة السورية</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 📌 الليرة الجديدة (بحذف صفرين)\n`;
+  msg += `│ 📌 الليرة الجديدة\n`;
   msg += `│─────────────────────\n`;
   if(sypUSD > 0) {
     const newBuy = (sypUSD/100).toFixed(2);
@@ -400,11 +400,11 @@ async function buildMessage(period, changedCurrencies) {
   msg += `━━━━━━━━━━━━━━━\n\n`;
   msg += `⛽ <b>أسعار الوقود والطاقة في سوريا</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ ⛽ بنزين 95      | ‎${formatNumber(fuel.gasoline95,0)} ل.س/لتر\n`;
-  msg += `│ ⛽ بنزين 90      | ‎${formatNumber(fuel.gasoline90,0)} ل.س/لتر\n`;
-  msg += `│ 🚛 مازوت        | ‎${formatNumber(fuel.diesel,0)} ل.س/لتر\n`;
-  msg += `│ 🏠 غاز منزلي    | ‎${formatNumber(fuel.gas_home,0)} ل.س/أسطوانة\n`;
-  msg += `│ 🏭 غاز صناعي    | ‎${formatNumber(fuel.gas_industrial,0)} ل.س/أسطوانة\n`;
+  msg += `│ ⛽ بنزين 95      | ‎${(fuel.gasoline95/100).toFixed(0)} ل.س.ج/لتر\n`;
+  msg += `│ ⛽ بنزين 90      | ‎${(fuel.gasoline90/100).toFixed(0)} ل.س.ج/لتر\n`;
+  msg += `│ 🚛 مازوت        | ‎${(fuel.diesel/100).toFixed(0)} ل.س.ج/لتر\n`;
+  msg += `│ 🏠 غاز منزلي    | ‎${(fuel.gas_home/100).toFixed(0)} ل.س.ج/أسطوانة\n`;
+  msg += `│ 🏭 غاز صناعي    | ‎${(fuel.gas_industrial/100).toFixed(0)} ل.س.ج/أسطوانة\n`;
   msg += `│ 💡 كهرباء منزلية | ${fuel.elec_home}\n`;
   msg += `│ 🏭 كهرباء صناعية | ${fuel.elec_industrial}\n`;
   msg += `└─────────────────────\n\n`;
