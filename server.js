@@ -5,6 +5,9 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const CHANNEL_ID = process.env.CHANNEL_ID || '';
 const EXCHANGE_API_KEY = process.env.EXCHANGE_API_KEY || '';
 
+let previousRates = {SYP: 0, SAR: 0, IQD: 0};
+let previousMetals = {gold: 0, silver: 0};
+
 async function getRates() {
   try {
     // Get USD base rates
@@ -54,6 +57,13 @@ function getChangeEmoji(change) {
   return '➡️';
 }
 
+function getArrow(current, previous) {
+  if(!previous || previous === 0) return '';
+  if(current > previous) return ' 🟢↑';
+  if(current < previous) return ' 🔴↓';
+  return '';
+}
+
 function formatNumber(num, decimals=2) {
   if(!num || num === 0) return 'غير متاح';
   return num.toLocaleString('ar-SA', {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
@@ -78,7 +88,8 @@ async function buildMessage(period) {
   const periodLabel = {
     morning: '🌅 أسعار الافتتاح - الصباح',
     midday: '☀️ تحديث منتصف اليوم',
-    evening: '🌙 أسعار الإغلاق - المساء'
+    evening: '🌙 أسعار الإغلاق - المساء',
+    update: '🔔 تحديث فوري - تغير في الأسعار'
   }[period] || '📊 تحديث الأسعار';
 
   // Calculate gold price per gram in USD
@@ -96,22 +107,22 @@ async function buildMessage(period) {
 
   msg += `💱 <b>أسعار الصرف مقابل الدولار 🇺🇸</b>\n\n`;
 
-  msg += `🇸🇾 <b>الليرة السورية</b>\n`;
+  msg += `🇸🇾 <b>الليرة السورية</b>${getArrow(rates.SYP, previousRates.SYP)}\n`;
   msg += `1 دولار = <b>${formatNumber(rates.SYP, 0)}</b> ليرة\n\n`;
 
-  msg += `🇸🇦 <b>الريال السعودي</b>\n`;
+  msg += `🇸🇦 <b>الريال السعودي</b>${getArrow(rates.SAR, previousRates.SAR)}\n`;
   msg += `1 دولار = <b>${formatNumber(rates.SAR, 4)}</b> ريال\n`;
   msg += `1 ريال = <b>${formatNumber(1/rates.SAR, 4)}</b> دولار\n\n`;
 
-  msg += `🇮🇶 <b>الدينار العراقي</b>\n`;
+  msg += `🇮🇶 <b>الدينار العراقي</b>${getArrow(rates.IQD, previousRates.IQD)}\n`;
   msg += `1 دولار = <b>${formatNumber(rates.IQD, 0)}</b> دينار\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n\n`;
 
-  msg += `🥇 <b>أسعار المعادن النفيسة</b>\n\n`;
+  msg += `🥇 <b>أسعار الذهب والفضة</b>\n\n`;
 
   if(metals.gold > 0) {
-    msg += `🥇 <b>الذهب</b>\n`;
+    msg += `🥇 <b>الذهب</b>${getArrow(metals.gold, previousMetals.gold)}\n`;
     msg += `الأوقية: <b>${formatNumber(metals.gold)}</b> دولار\n`;
     msg += `الغرام: <b>${formatNumber(goldGram)}</b> دولار\n`;
     msg += `الغرام بالريال 🇸🇦: <b>${formatNumber(goldSAR)}</b> ريال\n`;
@@ -120,14 +131,13 @@ async function buildMessage(period) {
   }
 
   if(metals.silver > 0) {
-    msg += `🥈 <b>الفضة</b>\n`;
+    msg += `🥈 <b>الفضة</b>${getArrow(metals.silver, previousMetals.silver)}\n`;
     msg += `الأوقية: <b>${formatNumber(metals.silver)}</b> دولار\n`;
     msg += `الغرام: <b>${formatNumber(silverGram)}</b> دولار\n\n`;
   }
 
   msg += `━━━━━━━━━━━━━━━\n`;
-  msg += `⚠️ الأسعار تقريبية للاستئناس فقط\n`;
-  msg += `🔄 يتم التحديث 3 مرات يومياً\n`;
+  msg += `🔄 تحديث فوري عند تغير الأسعار\n`;
   msg += `📢 <a href="https://t.me/sr3_alyom">سعر اليوم</a>`;
 
   return msg;
@@ -144,15 +154,41 @@ async function sendToChannel(period) {
       parse_mode: 'HTML'
     });
     console.log('Sent', period, 'update to channel');
+
+    const newRates = await getRates();
+    const newMetals = await getGoldSilver();
+    if(newRates) previousRates = {SYP: newRates.SYP, SAR: newRates.SAR, IQD: newRates.IQD};
+    if(newMetals) previousMetals = {gold: newMetals.gold, silver: newMetals.silver};
   } catch(e) {
     console.error('Send error:', e.message);
   }
 }
 
-// Schedule: 7 AM, 12 PM, 9 PM Riyadh time
-cron.schedule('0 7 * * *', () => sendToChannel('morning'), {timezone: 'Asia/Riyadh'});
-cron.schedule('0 12 * * *', () => sendToChannel('midday'), {timezone: 'Asia/Riyadh'});
-cron.schedule('0 21 * * *', () => sendToChannel('evening'), {timezone: 'Asia/Riyadh'});
+// Check every hour and only send if rates changed significantly
+cron.schedule('0 * * * *', async () => {
+  const newRates = await getRates();
+  const newMetals = await getGoldSilver();
+  if(!newRates) return;
+
+  const sypChange = previousRates.SYP ? Math.abs(newRates.SYP - previousRates.SYP) / previousRates.SYP : 1;
+  const sarChange = previousRates.SAR ? Math.abs(newRates.SAR - previousRates.SAR) / previousRates.SAR : 1;
+  const iqdChange = previousRates.IQD ? Math.abs(newRates.IQD - previousRates.IQD) / previousRates.IQD : 1;
+  const goldChange = previousMetals.gold ? Math.abs(newMetals.gold - previousMetals.gold) / previousMetals.gold : 1;
+
+  const hasChange = sypChange > 0.001 || sarChange > 0.001 || iqdChange > 0.001 || goldChange > 0.001;
+
+  const hour = new Date().toLocaleString('en-US', {timeZone:'Asia/Riyadh', hour:'numeric', hour12:false});
+  const hourNum = parseInt(hour);
+
+  const scheduledHours = [7, 12, 21];
+  const isScheduled = scheduledHours.includes(hourNum);
+
+  if(isScheduled || hasChange) {
+    const period = hourNum === 7 ? 'morning' : hourNum === 12 ? 'midday' : hourNum === 21 ? 'evening' : 'update';
+    console.log('Sending update. Scheduled:', isScheduled, 'Change detected:', hasChange);
+    await sendToChannel(period);
+  }
+}, {timezone: 'Asia/Riyadh'});
 
 // Keep alive
 const express = require('express');
