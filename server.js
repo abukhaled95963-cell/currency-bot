@@ -143,13 +143,13 @@ async function scrapeSPToday() {
 
 function getSyriaFuelPrices() {
   return {
-    gasoline95: parseInt(getSetting('fuel_gas95', '8000')),
-    gasoline90: parseInt(getSetting('fuel_gas90', '5000')),
-    diesel: parseInt(getSetting('fuel_diesel', '3000')),
-    gas_home: parseInt(getSetting('fuel_gas_home', '20000')),
-    gas_industrial: parseInt(getSetting('fuel_gas_ind', '80000')),
-    elec_home: getSetting('fuel_elec_home', '18 ل.س/كيلوواط'),
-    elec_industrial: getSetting('fuel_elec_ind', '45 ل.س/كيلوواط')
+    gasoline95: parseInt(getSetting('fuel_gas95', '22000')),
+    gasoline90: parseInt(getSetting('fuel_gas90', '18000')),
+    diesel: parseInt(getSetting('fuel_diesel', '8000')),
+    gas_home: parseInt(getSetting('fuel_gas_home', '85000')),
+    gas_industrial: parseInt(getSetting('fuel_gas_ind', '280000')),
+    elec_home: getSetting('fuel_elec_home', '75 ل.س/كيلوواط'),
+    elec_industrial: getSetting('fuel_elec_ind', '150 ل.س/كيلوواط')
   };
 }
 
@@ -364,7 +364,7 @@ async function buildMessage(period, changedCurrencies) {
   const g18 = spData?.gold?.k18 || (g24 * 0.75) || 0;
   const g14 = spData?.gold?.k14 || (g24 * 0.585) || 0;
 
-  if(g24 > 0) msg += `│ ✨ عيار 24  | ‎${formatNumber(g24,0)} ل.س/غرام${getArrow(g24, previousMetals.gold * usdMid)}\n`;
+  if(g24 > 0) msg += `│ ✨ عيار 24  | ‎${formatNumber(g24,0)} ل.س/غرام${getArrow(g24, previousMetals.gold / 31.1035 * usdMid)}\n`;
   if(g21 > 0) msg += `│ ✨ عيار 21  | ‎${formatNumber(g21,0)} ل.س/غرام\n`;
   if(g18 > 0) msg += `│ ✨ عيار 18  | ‎${formatNumber(g18,0)} ل.س/غرام\n`;
   if(g14 > 0) msg += `│ ✨ عيار 14  | ‎${formatNumber(g14,0)} ل.س/غرام\n`;
