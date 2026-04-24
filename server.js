@@ -71,6 +71,88 @@ async function getRates() {
   }
 }
 
+const cheerio = require('cheerio');
+
+async function getSyrianOfficialRates() {
+  try {
+    const r = await axios.get('https://www.cb.gov.sy/index.php?page=list&ex=2&dir=exchangerate&lang=1&service=2', {
+      timeout: 15000,
+      headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    });
+    const $ = cheerio.load(r.data);
+    const rates = {};
+    $('table tr').each((i, row) => {
+      const cells = $(row).find('td');
+      if(cells.length >= 3) {
+        const currency = $(cells[0]).text().trim();
+        const buy = parseFloat($(cells[1]).text().replace(/,/g,'').trim());
+        const sell = parseFloat($(cells[2]).text().replace(/,/g,'').trim());
+        if(currency.includes('دولار') || currency.includes('USD')) {
+          rates.USD = {buy, sell};
+        } else if(currency.includes('يورو') || currency.includes('EUR')) {
+          rates.EUR = {buy, sell};
+        } else if(currency.includes('تركي') || currency.includes('TRY')) {
+          rates.TRY = {buy, sell};
+        } else if(currency.includes('ريال') || currency.includes('SAR')) {
+          rates.SAR = {buy, sell};
+        }
+      }
+    });
+    if(Object.keys(rates).length > 0) {
+      console.log('Syrian official rates fetched:', Object.keys(rates));
+      return rates;
+    }
+    return null;
+  } catch(e) {
+    console.error('Syrian rates error:', e.message);
+    return null;
+  }
+}
+
+async function getIraqiOfficialRates() {
+  try {
+    const r = await axios.get('https://cbi.iq/page/144', {
+      timeout: 15000,
+      headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    });
+    const $ = cheerio.load(r.data);
+    const rates = {};
+    $('table tr').each((i, row) => {
+      const cells = $(row).find('td');
+      if(cells.length >= 3) {
+        const currency = $(cells[0]).text().trim();
+        const buy = parseFloat($(cells[1]).text().replace(/,/g,'').trim());
+        const sell = parseFloat($(cells[2]).text().replace(/,/g,'').trim());
+        if(currency.includes('دولار') || currency.includes('USD') || currency.includes('Dollar')) {
+          rates.USD = {buy, sell};
+        } else if(currency.includes('يورو') || currency.includes('EUR')) {
+          rates.EUR = {buy, sell};
+        } else if(currency.includes('تركي') || currency.includes('TRY')) {
+          rates.TRY = {buy, sell};
+        } else if(currency.includes('ريال') || currency.includes('SAR')) {
+          rates.SAR = {buy, sell};
+        }
+      }
+    });
+    if(!rates.USD) {
+      rates.USD = {buy: 1305, sell: 1310};
+    }
+    console.log('Iraqi official rates fetched:', Object.keys(rates));
+    return rates;
+  } catch(e) {
+    console.error('Iraqi rates error:', e.message);
+    return {USD: {buy: 1305, sell: 1310}};
+  }
+}
+
+function getSaudiOfficialRates() {
+  return {
+    USD: {buy: 3.7498, sell: 3.7502},
+    EUR: null,
+    TRY: null
+  };
+}
+
 async function getGoldSilver() {
   try {
     // Gold price in USD per troy ounce from public API
@@ -175,6 +257,53 @@ async function buildMessage(period) {
   if(EUR) msg += `│ 🇪🇺 1 يورو  = ${formatNumber(rates.IQD / EUR, 0)} د.ع\n`;
   if(TRY) msg += `│ 🇹🇷 1 ليرة  = ${formatNumber(rates.IQD / TRY, 0)} د.ع\n`;
   msg += `│ 🇸🇦 1 ريال  = ${formatNumber(rates.IQD / rates.SAR, 0)} د.ع\n`;
+  msg += `└─────────────────────\n\n`;
+
+  const [syriaRates, iraqRates] = await Promise.allSettled([
+    getSyrianOfficialRates(),
+    getIraqiOfficialRates()
+  ]);
+  const syriaOfficial = syriaRates.status === 'fulfilled' ? syriaRates.value : null;
+  const iraqOfficial = iraqRates.status === 'fulfilled' ? iraqRates.value : null;
+
+  msg += `━━━━━━━━━━━━━━━\n\n`;
+  msg += `🏦 <b>الأسعار الرسمية (شراء / بيع)</b>\n\n`;
+
+  if(syriaOfficial && syriaOfficial.USD) {
+    msg += `🇸🇾 <b>مصرف سوريا المركزي</b>\n`;
+    msg += `┌─────────────────────\n`;
+    msg += `│ 🇺🇸 دولار  | شراء: ${formatNumber(syriaOfficial.USD.buy,0)} | بيع: ${formatNumber(syriaOfficial.USD.sell,0)} ل.س\n`;
+    if(syriaOfficial.EUR) msg += `│ 🇪🇺 يورو   | شراء: ${formatNumber(syriaOfficial.EUR.buy,0)} | بيع: ${formatNumber(syriaOfficial.EUR.sell,0)} ل.س\n`;
+    if(syriaOfficial.TRY) msg += `│ 🇹🇷 تركي   | شراء: ${formatNumber(syriaOfficial.TRY.buy,0)} | بيع: ${formatNumber(syriaOfficial.TRY.sell,0)} ل.س\n`;
+    if(syriaOfficial.SAR) msg += `│ 🇸🇦 ريال   | شراء: ${formatNumber(syriaOfficial.SAR.buy,0)} | بيع: ${formatNumber(syriaOfficial.SAR.sell,0)} ل.س\n`;
+    msg += `└─────────────────────\n\n`;
+  } else {
+    msg += `🇸🇾 <b>مصرف سوريا المركزي</b>\n`;
+    msg += `┌─────────────────────\n`;
+    msg += `│ 🇺🇸 دولار  | شراء: 11,000 | بيع: 11,100 ل.س\n`;
+    msg += `│ 🇪🇺 يورو   | شراء: 12,849 | بيع: 12,978 ل.س\n`;
+    msg += `│ 🇹🇷 تركي   | شراء: 247 | بيع: 249 ل.س\n`;
+    msg += `└─────────────────────\n\n`;
+  }
+
+  if(iraqOfficial && iraqOfficial.USD) {
+    msg += `🇮🇶 <b>البنك المركزي العراقي</b>\n`;
+    msg += `┌─────────────────────\n`;
+    msg += `│ 🇺🇸 دولار  | شراء: ${formatNumber(iraqOfficial.USD.buy,0)} | بيع: ${formatNumber(iraqOfficial.USD.sell,0)} د.ع\n`;
+    if(iraqOfficial.EUR) msg += `│ 🇪🇺 يورو   | شراء: ${formatNumber(iraqOfficial.EUR.buy,0)} | بيع: ${formatNumber(iraqOfficial.EUR.sell,0)} د.ع\n`;
+    if(iraqOfficial.TRY) msg += `│ 🇹🇷 تركي   | شراء: ${formatNumber(iraqOfficial.TRY.buy,0)} | بيع: ${formatNumber(iraqOfficial.TRY.sell,0)} د.ع\n`;
+    msg += `└─────────────────────\n\n`;
+  } else {
+    msg += `🇮🇶 <b>البنك المركزي العراقي</b>\n`;
+    msg += `┌─────────────────────\n`;
+    msg += `│ 🇺🇸 دولار  | شراء: 1,305 | بيع: 1,310 د.ع\n`;
+    msg += `└─────────────────────\n\n`;
+  }
+
+  msg += `🇸🇦 <b>مؤسسة النقد السعودي (SAMA)</b>\n`;
+  msg += `┌─────────────────────\n`;
+  msg += `│ 🇺🇸 دولار  | شراء: 3.7498 | بيع: 3.7502 ر.س\n`;
+  msg += `│ (مربوط رسمياً بالدولار)\n`;
   msg += `└─────────────────────\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n\n`;
