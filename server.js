@@ -111,8 +111,8 @@ function getArrow(current, previous) {
 }
 
 function formatNumber(num, decimals=2) {
-  if(!num || num === 0) return 'غير متاح';
-  return num.toLocaleString('ar-SA', {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+  if(!num || num === 0) return 'N/A';
+  return '‎' + num.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 async function buildMessage(period) {
@@ -155,26 +155,26 @@ async function buildMessage(period) {
 
   msg += `🇸🇾 <b>الليرة السورية</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 1$ = ${formatNumber(rates.SYP, 0)} S.P${getArrow(rates.SYP, previousRates.SYP)}\n`;
-  if(EUR) msg += `│ 🇪🇺 1€ = ${formatNumber(rates.SYP / EUR, 0)} S.P\n`;
-  if(TRY) msg += `│ 🇹🇷 1₺ = ${formatNumber(rates.SYP / TRY, 0)} S.P\n`;
-  msg += `│ 🇸🇦 1﷼ = ${formatNumber(rates.SYP / rates.SAR, 0)} S.P\n`;
+  msg += `│ 🇺🇸 1 دولار = ${formatNumber(rates.SYP, 0)} ل.س${getArrow(rates.SYP, previousRates.SYP)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1 يورو  = ${formatNumber(rates.SYP / EUR, 0)} ل.س\n`;
+  if(TRY) msg += `│ 🇹🇷 1 ليرة  = ${formatNumber(rates.SYP / TRY, 0)} ل.س\n`;
+  msg += `│ 🇸🇦 1 ريال  = ${formatNumber(rates.SYP / rates.SAR, 0)} ل.س\n`;
   msg += `└─────────────────────\n\n`;
 
   msg += `🇸🇦 <b>الريال السعودي</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 1$ = ${formatNumber(rates.SAR, 4)} SAR${getArrow(rates.SAR, previousRates.SAR)}\n`;
-  if(EUR) msg += `│ 🇪🇺 1€ = ${formatNumber(rates.SAR / EUR, 4)} SAR\n`;
-  if(TRY) msg += `│ 🇹🇷 1₺ = ${formatNumber(rates.SAR / TRY, 4)} SAR\n`;
-  msg += `│ 🇮🇶 1IQD = ${formatNumber(rates.SAR / rates.IQD, 6)} SAR\n`;
+  msg += `│ 🇺🇸 1 دولار = ${formatNumber(rates.SAR, 4)} ر.س${getArrow(rates.SAR, previousRates.SAR)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1 يورو  = ${formatNumber(rates.SAR / EUR, 4)} ر.س\n`;
+  if(TRY) msg += `│ 🇹🇷 1 ليرة  = ${formatNumber(rates.SAR / TRY, 4)} ر.س\n`;
+  msg += `│ 🇮🇶 1 دينار = ${formatNumber(rates.SAR / rates.IQD, 6)} ر.س\n`;
   msg += `└─────────────────────\n\n`;
 
   msg += `🇮🇶 <b>الدينار العراقي</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 1$ = ${formatNumber(rates.IQD, 0)} IQD${getArrow(rates.IQD, previousRates.IQD)}\n`;
-  if(EUR) msg += `│ 🇪🇺 1€ = ${formatNumber(rates.IQD / EUR, 0)} IQD\n`;
-  if(TRY) msg += `│ 🇹🇷 1₺ = ${formatNumber(rates.IQD / TRY, 0)} IQD\n`;
-  msg += `│ 🇸🇦 1﷼ = ${formatNumber(rates.IQD / rates.SAR, 0)} IQD\n`;
+  msg += `│ 🇺🇸 1 دولار = ${formatNumber(rates.IQD, 0)} د.ع${getArrow(rates.IQD, previousRates.IQD)}\n`;
+  if(EUR) msg += `│ 🇪🇺 1 يورو  = ${formatNumber(rates.IQD / EUR, 0)} د.ع\n`;
+  if(TRY) msg += `│ 🇹🇷 1 ليرة  = ${formatNumber(rates.IQD / TRY, 0)} د.ع\n`;
+  msg += `│ 🇸🇦 1 ريال  = ${formatNumber(rates.IQD / rates.SAR, 0)} د.ع\n`;
   msg += `└─────────────────────\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n\n`;
@@ -183,21 +183,21 @@ async function buildMessage(period) {
   msg += `┌─────────────────────\n`;
   if(metals.gold > 0) {
     msg += `│ 🥇 الذهب${getArrow(metals.gold, previousMetals.gold)}\n`;
-    msg += `│ 1oz = ${formatNumber(metals.gold, 2)}$\n`;
-    msg += `│ 1g  = ${formatNumber(goldGram, 2)}$\n`;
-    msg += `│ 1g  = ${formatNumber(goldGram * rates.SAR, 2)}﷼\n`;
-    msg += `│ 1g  = ${formatNumber(goldGram * rates.SYP, 0)} S.P\n`;
-    msg += `│ 1g  = ${formatNumber(goldGram * rates.IQD, 0)} IQD\n`;
-    if(EUR) msg += `│ 1g  = ${formatNumber(goldGram / EUR, 2)}€\n`;
+    msg += `│ 1 أوقية = ${formatNumber(metals.gold, 2)} دولار\n`;
+    msg += `│ 1 غرام  = ${formatNumber(goldGram, 2)} دولار\n`;
+    msg += `│ 1 غرام  = ${formatNumber(goldGram * rates.SAR, 2)} ريال\n`;
+    msg += `│ 1 غرام  = ${formatNumber(goldGram * rates.SYP, 0)} ل.س\n`;
+    msg += `│ 1 غرام  = ${formatNumber(goldGram * rates.IQD, 0)} دينار\n`;
+    if(EUR) msg += `│ 1 غرام  = ${formatNumber(goldGram / EUR, 2)} يورو\n`;
   }
   if(metals.silver > 0) {
     msg += `│\n│ 🥈 الفضة${getArrow(metals.silver, previousMetals.silver)}\n`;
-    msg += `│ 1oz = ${formatNumber(metals.silver, 2)}$\n`;
-    msg += `│ 1g  = ${formatNumber(silverGram, 4)}$\n`;
-    msg += `│ 1g  = ${formatNumber(silverGram * rates.SAR, 2)}﷼\n`;
-    msg += `│ 1g  = ${formatNumber(silverGram * rates.SYP, 0)} S.P\n`;
-    msg += `│ 1g  = ${formatNumber(silverGram * rates.IQD, 0)} IQD\n`;
-    if(EUR) msg += `│ 1g  = ${formatNumber(silverGram / EUR, 4)}€\n`;
+    msg += `│ 1 أوقية = ${formatNumber(metals.silver, 2)} دولار\n`;
+    msg += `│ 1 غرام  = ${formatNumber(silverGram, 4)} دولار\n`;
+    msg += `│ 1 غرام  = ${formatNumber(silverGram * rates.SAR, 2)} ريال\n`;
+    msg += `│ 1 غرام  = ${formatNumber(silverGram * rates.SYP, 0)} ل.س\n`;
+    msg += `│ 1 غرام  = ${formatNumber(silverGram * rates.IQD, 0)} دينار\n`;
+    if(EUR) msg += `│ 1 غرام  = ${formatNumber(silverGram / EUR, 4)} يورو\n`;
   }
   msg += `└─────────────────────\n\n`;
 
