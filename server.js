@@ -73,6 +73,86 @@ async function getRates() {
 
 const cheerio = require('cheerio');
 
+async function scrapeSPToday() {
+  try {
+    const r = await axios.get('https://sp-today.com/en', {
+      timeout: 15000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'ar,en;q=0.9'
+      }
+    });
+    const $ = cheerio.load(r.data);
+    const data = {
+      currencies: {},
+      gold: {},
+      fuel: {}
+    };
+
+    $('table tr, .currency-row, .rate-row').each((i, row) => {
+      const text = $(row).text();
+      const cells = $(row).find('td, .value');
+      if(cells.length >= 2) {
+        const name = $(cells[0]).text().trim();
+        const buy = parseFloat($(cells[1]).text().replace(/[^0-9.]/g,''));
+        const sell = cells.length >= 3 ? parseFloat($(cells[2]).text().replace(/[^0-9.]/g,'')) : buy;
+        if(name && buy > 0) {
+          if(name.includes('دولار') || name.includes('Dollar') || name.includes('USD')) data.currencies.USD = {buy, sell, name:'دولار'};
+          else if(name.includes('يورو') || name.includes('Euro') || name.includes('EUR')) data.currencies.EUR = {buy, sell, name:'يورو'};
+          else if(name.includes('تركي') || name.includes('Turkish') || name.includes('TRY')) data.currencies.TRY = {buy, sell, name:'ليرة تركية'};
+          else if(name.includes('ريال سعودي') || name.includes('SAR')) data.currencies.SAR = {buy, sell, name:'ريال سعودي'};
+        }
+      }
+    });
+
+    const apiR = await axios.get('https://sp-today.com/api/currencies', {
+      timeout: 10000,
+      headers: {'User-Agent': 'Mozilla/5.0'}
+    }).catch(() => null);
+
+    if(apiR && apiR.data) {
+      const apiData = apiR.data;
+      if(Array.isArray(apiData)) {
+        apiData.forEach(item => {
+          if(item.code === 'USD' || item.symbol === '$') data.currencies.USD = {buy: item.buy || item.rate, sell: item.sell || item.rate, name:'دولار'};
+          if(item.code === 'EUR' || item.symbol === '€') data.currencies.EUR = {buy: item.buy || item.rate, sell: item.sell || item.rate, name:'يورو'};
+          if(item.code === 'TRY') data.currencies.TRY = {buy: item.buy || item.rate, sell: item.sell || item.rate, name:'ليرة تركية'};
+          if(item.code === 'SAR') data.currencies.SAR = {buy: item.buy || item.rate, sell: item.sell || item.rate, name:'ريال سعودي'};
+        });
+      }
+    }
+
+    $('*').each((i, el) => {
+      const text = $(el).text();
+      const val = parseFloat(text.replace(/[^0-9.]/g,''));
+      if(val > 50000 && val < 5000000) {
+        if(text.includes('24') || text.includes('عيار 24')) data.gold.k24 = val;
+        else if(text.includes('21') || text.includes('عيار 21')) data.gold.k21 = val;
+        else if(text.includes('18') || text.includes('عيار 18')) data.gold.k18 = val;
+        else if(text.includes('14') || text.includes('عيار 14')) data.gold.k14 = val;
+      }
+    });
+
+    console.log('SP Today scraped:', JSON.stringify(data.currencies), 'Gold:', JSON.stringify(data.gold));
+    return data;
+  } catch(e) {
+    console.error('SP Today scrape error:', e.message);
+    return null;
+  }
+}
+
+function getSyriaFuelPrices() {
+  return {
+    gasoline95: parseInt(getSetting('fuel_gas95', '8000')),
+    gasoline90: parseInt(getSetting('fuel_gas90', '5000')),
+    diesel: parseInt(getSetting('fuel_diesel', '3000')),
+    gas_home: parseInt(getSetting('fuel_gas_home', '20000')),
+    gas_industrial: parseInt(getSetting('fuel_gas_ind', '80000')),
+    elec_home: getSetting('fuel_elec_home', '18 ل.س/كيلوواط'),
+    elec_industrial: getSetting('fuel_elec_ind', '45 ل.س/كيلوواط')
+  };
+}
+
 async function getSyrianOfficialRates() {
   try {
     const r = await axios.get('https://www.cb.gov.sy/index.php?page=list&ex=2&dir=exchangerate&lang=1&service=2', {
@@ -197,97 +277,114 @@ function formatNumber(num, decimals=2) {
   return '‎' + num.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
-async function buildMessage(period) {
-  const rates = await getRates();
+async function buildMessage(period, changedCurrencies) {
+  const spData = await scrapeSPToday();
   const metals = await getGoldSilver();
+  const globalRates = await getRates();
+  const fuel = getSyriaFuelPrices();
 
-  if(!rates) return null;
-
-  const now = new Date().toLocaleString('ar-SA', {
+  const now = new Date();
+  const nowDate = now.toLocaleDateString('ar-SA', {
     timeZone: 'Asia/Riyadh',
     weekday: 'long',
     year: 'numeric',
     month: 'long',
-    day: 'numeric',
+    day: 'numeric'
+  });
+  const nowTime = now.toLocaleTimeString('en-US', {
+    timeZone: 'Asia/Riyadh',
     hour: '2-digit',
-    minute: '2-digit'
+    minute: '2-digit',
+    hour12: false
   });
 
+  const timeStr = nowTime;
   const periodLabel = {
-    morning: '🌅 أسعار الافتتاح - الصباح',
-    midday: '☀️ تحديث منتصف اليوم',
-    evening: '🌙 أسعار الإغلاق - المساء',
-    update: '🔔 تحديث فوري - تغير في الأسعار'
-  }[period] || '📊 تحديث الأسعار';
+    morning: `🌅 نشرة الصباح - ${timeStr}`,
+    midday: `☀️ نشرة الظهيرة - ${timeStr}`,
+    evening: `🌙 نشرة المساء - ${timeStr}`,
+    update: `🔔 نشرة الساعة ${timeStr}`
+  }[period] || `📊 نشرة الساعة ${timeStr}`;
 
-  const goldGram = metals.gold ? (metals.gold / 31.1035) : 0;
-  const silverGram = metals.silver ? (metals.silver / 31.1035) : 0;
+  let msg = '';
 
-  const EUR = rates.EUR || 0;
-  const TRY = rates.TRY || 0;
-
-  function crossRate(base, target) {
-    if(!base || !target) return 0;
-    return target / base;
+  if(changedCurrencies && changedCurrencies.length > 0) {
+    msg += `<b>`;
+    changedCurrencies.forEach(ch => {
+      msg += `${ch.arrow} ${ch.name} ${ch.pct > 0 ? '+' : ''}${ch.pct}%  `;
+    });
+    msg += `</b>\n\n`;
   }
 
-  let msg = `${periodLabel}\n`;
-  msg += `📅 ${now}\n`;
+  msg += `${periodLabel}\n`;
+  msg += `📅 ${nowDate} - ${nowTime}\n`;
   msg += `━━━━━━━━━━━━━━━\n\n`;
 
-  const sypMid = rates.SYP;
-  const sypBuy = Math.round(sypMid * 0.993);
-  const sypSell = Math.round(sypMid * 1.007);
-  msg += `🇸🇾 <b>الليرة السورية</b>\n`;
-  msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 1 دولار  | شراء: ${formatNumber(sypBuy,0)} | بيع: ${formatNumber(sypSell,0)} ل.س${getArrow(rates.SYP, previousRates.SYP)}\n`;
-  if(EUR) msg += `│ 🇪🇺 1 يورو   | شراء: ${formatNumber(Math.round(sypMid/EUR*0.993),0)} | بيع: ${formatNumber(Math.round(sypMid/EUR*1.007),0)} ل.س\n`;
-  if(TRY) msg += `│ 🇹🇷 1 ليرة   | شراء: ${formatNumber(sypMid/TRY*0.993,1)} | بيع: ${formatNumber(sypMid/TRY*1.007,1)} ل.س\n`;
-  msg += `│ 🇸🇦 1 ريال   | شراء: ${formatNumber(Math.round(sypMid/rates.SAR*0.993),0)} | بيع: ${formatNumber(Math.round(sypMid/rates.SAR*1.007),0)} ل.س\n`;
-  msg += `└─────────────────────\n\n`;
+  const USD = spData?.currencies?.USD;
+  const EUR = spData?.currencies?.EUR;
+  const TRY = spData?.currencies?.TRY;
+  const SAR = spData?.currencies?.SAR;
 
-  const sarMid = rates.SAR;
-  msg += `🇸🇦 <b>الريال السعودي</b>\n`;
-  msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 1 دولار  | شراء: ${formatNumber(sarMid*0.9993,4)} | بيع: ${formatNumber(sarMid*1.0007,4)} ر.س${getArrow(rates.SAR, previousRates.SAR)}\n`;
-  if(EUR) msg += `│ 🇪🇺 1 يورو   | شراء: ${formatNumber(sarMid/EUR*0.993,4)} | بيع: ${formatNumber(sarMid/EUR*1.007,4)} ر.س\n`;
-  if(TRY) msg += `│ 🇹🇷 1 ليرة   | شراء: ${formatNumber(sarMid/TRY*0.993,4)} | بيع: ${formatNumber(sarMid/TRY*1.007,4)} ر.س\n`;
-  msg += `│ 🇮🇶 1 دينار  | شراء: ${formatNumber(sarMid/rates.IQD*0.993,6)} | بيع: ${formatNumber(sarMid/rates.IQD*1.007,6)} ر.س\n`;
-  msg += `└─────────────────────\n\n`;
+  const usdMid = USD?.buy || globalRates?.SYP || 0;
+  const eurMid = EUR?.buy || (globalRates?.SYP && globalRates?.EUR ? globalRates.SYP / globalRates.EUR : 0);
+  const tryMid = TRY?.buy || (globalRates?.SYP && globalRates?.TRY ? globalRates.SYP / globalRates.TRY : 0);
+  const sarMid = SAR?.buy || (globalRates?.SYP && globalRates?.SAR ? globalRates.SYP / globalRates.SAR : 0);
 
-  const iqdMid = rates.IQD;
-  const iqdBuy = Math.round(iqdMid * 0.997);
-  const iqdSell = Math.round(iqdMid * 1.003);
-  msg += `🇮🇶 <b>الدينار العراقي</b>\n`;
+  msg += `🇸🇾 <b>أسعار الصرف مقابل الليرة السورية</b>\n`;
   msg += `┌─────────────────────\n`;
-  msg += `│ 🇺🇸 1 دولار  | شراء: ${formatNumber(iqdBuy,0)} | بيع: ${formatNumber(iqdSell,0)} د.ع${getArrow(rates.IQD, previousRates.IQD)}\n`;
-  if(EUR) msg += `│ 🇪🇺 1 يورو   | شراء: ${formatNumber(Math.round(iqdMid/EUR*0.997),0)} | بيع: ${formatNumber(Math.round(iqdMid/EUR*1.003),0)} د.ع\n`;
-  if(TRY) msg += `│ 🇹🇷 1 ليرة   | شراء: ${formatNumber(Math.round(iqdMid/TRY*0.997),0)} | بيع: ${formatNumber(Math.round(iqdMid/TRY*1.003),0)} د.ع\n`;
-  msg += `│ 🇸🇦 1 ريال   | شراء: ${formatNumber(Math.round(iqdMid/rates.SAR*0.997),0)} | بيع: ${formatNumber(Math.round(iqdMid/rates.SAR*1.003),0)} د.ع\n`;
+  if(usdMid > 0) {
+    const buy = USD?.buy || Math.round(usdMid*0.993);
+    const sell = USD?.sell || Math.round(usdMid*1.007);
+    msg += `│ 🇺🇸 1 دولار  | شراء: ‎${formatNumber(buy,0)} | بيع: ‎${formatNumber(sell,0)} ل.س${getArrow(usdMid, previousRates.SYP)}\n`;
+  }
+  if(eurMid > 0) {
+    const buy = EUR?.buy || Math.round(eurMid*0.993);
+    const sell = EUR?.sell || Math.round(eurMid*1.007);
+    msg += `│ 🇪🇺 1 يورو   | شراء: ‎${formatNumber(buy,0)} | بيع: ‎${formatNumber(sell,0)} ل.س\n`;
+  }
+  if(tryMid > 0) {
+    const buy = TRY?.buy || Math.round(tryMid*0.993);
+    const sell = TRY?.sell || Math.round(tryMid*1.007);
+    msg += `│ 🇹🇷 1 ليرة   | شراء: ‎${formatNumber(buy,0)} | بيع: ‎${formatNumber(sell,0)} ل.س\n`;
+  }
+  if(sarMid > 0) {
+    const buy = SAR?.buy || Math.round(sarMid*0.993);
+    const sell = SAR?.sell || Math.round(sarMid*1.007);
+    msg += `│ 🇸🇦 1 ريال   | شراء: ‎${formatNumber(buy,0)} | بيع: ‎${formatNumber(sell,0)} ل.س\n`;
+  }
   msg += `└─────────────────────\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n\n`;
-
-  msg += `🥇 <b>الذهب والفضة</b>\n`;
+  msg += `🥇 <b>أسعار الذهب بالليرة السورية</b>\n`;
   msg += `┌─────────────────────\n`;
-  if(metals.gold > 0) {
-    msg += `│ 🥇 الذهب${getArrow(metals.gold, previousMetals.gold)}\n`;
-    msg += `│ 1 أوقية = ${formatNumber(metals.gold, 2)} دولار\n`;
-    msg += `│ 1 غرام  = ${formatNumber(goldGram, 2)} دولار\n`;
-    msg += `│ 1 غرام  = ${formatNumber(goldGram * rates.SAR, 2)} ريال\n`;
-    msg += `│ 1 غرام  = ${formatNumber(goldGram * rates.SYP, 0)} ل.س\n`;
-    msg += `│ 1 غرام  = ${formatNumber(goldGram * rates.IQD, 0)} دينار\n`;
-    if(EUR) msg += `│ 1 غرام  = ${formatNumber(goldGram / EUR, 2)} يورو\n`;
+
+  const goldUSD = metals.gold ? metals.gold / 31.1035 : 0;
+  const g24 = spData?.gold?.k24 || (goldUSD * usdMid) || 0;
+  const g21 = spData?.gold?.k21 || (g24 * 0.875) || 0;
+  const g18 = spData?.gold?.k18 || (g24 * 0.75) || 0;
+  const g14 = spData?.gold?.k14 || (g24 * 0.585) || 0;
+
+  if(g24 > 0) msg += `│ ✨ عيار 24  | ‎${formatNumber(g24,0)} ل.س/غرام${getArrow(g24, previousMetals.gold * usdMid)}\n`;
+  if(g21 > 0) msg += `│ ✨ عيار 21  | ‎${formatNumber(g21,0)} ل.س/غرام\n`;
+  if(g18 > 0) msg += `│ ✨ عيار 18  | ‎${formatNumber(g18,0)} ل.س/غرام\n`;
+  if(g14 > 0) msg += `│ ✨ عيار 14  | ‎${formatNumber(g14,0)} ل.س/غرام\n`;
+
+  if(metals.silver) {
+    const silverSYP = (metals.silver / 31.1035) * usdMid;
+    msg += `│ 🥈 فضة      | ‎${formatNumber(silverSYP,0)} ل.س/غرام\n`;
   }
-  if(metals.silver > 0) {
-    msg += `│\n│ 🥈 الفضة${getArrow(metals.silver, previousMetals.silver)}\n`;
-    msg += `│ 1 أوقية = ${formatNumber(metals.silver, 2)} دولار\n`;
-    msg += `│ 1 غرام  = ${formatNumber(silverGram, 4)} دولار\n`;
-    msg += `│ 1 غرام  = ${formatNumber(silverGram * rates.SAR, 2)} ريال\n`;
-    msg += `│ 1 غرام  = ${formatNumber(silverGram * rates.SYP, 0)} ل.س\n`;
-    msg += `│ 1 غرام  = ${formatNumber(silverGram * rates.IQD, 0)} دينار\n`;
-    if(EUR) msg += `│ 1 غرام  = ${formatNumber(silverGram / EUR, 4)} يورو\n`;
-  }
+  msg += `└─────────────────────\n\n`;
+
+  msg += `━━━━━━━━━━━━━━━\n\n`;
+  msg += `⛽ <b>أسعار الوقود والطاقة في سوريا</b>\n`;
+  msg += `┌─────────────────────\n`;
+  msg += `│ ⛽ بنزين 95  | ‎${formatNumber(fuel.gasoline95,0)} ل.س/لتر\n`;
+  msg += `│ ⛽ بنزين 90  | ‎${formatNumber(fuel.gasoline90,0)} ل.س/لتر\n`;
+  msg += `│ 🚛 مازوت    | ‎${formatNumber(fuel.diesel,0)} ل.س/لتر\n`;
+  msg += `│ 🏠 غاز منزلي | ‎${formatNumber(fuel.gas_home,0)} ل.س/أسطوانة\n`;
+  msg += `│ 🏭 غاز صناعي | ‎${formatNumber(fuel.gas_industrial,0)} ل.س/أسطوانة\n`;
+  msg += `│ 💡 كهرباء منزلية | ${fuel.elec_home}\n`;
+  msg += `│ 🏭 كهرباء صناعية | ${fuel.elec_industrial}\n`;
   msg += `└─────────────────────\n\n`;
 
   msg += `━━━━━━━━━━━━━━━\n`;
@@ -297,9 +394,9 @@ async function buildMessage(period) {
   return msg;
 }
 
-async function sendToChannel(period) {
+async function sendToChannel(period, changedCurrencies) {
   try {
-    const msg = await buildMessage(period);
+    const msg = await buildMessage(period, changedCurrencies);
     if(!msg) { console.log('Failed to build message'); return; }
 
     const channels = getChannels();
@@ -325,31 +422,43 @@ async function sendToChannel(period) {
   }
 }
 
-// Check every hour and only send if rates changed significantly
+let lastRates = {USD: 0, EUR: 0, TRY: 0, SAR: 0};
+
 cron.schedule('0 * * * *', async () => {
-  const newRates = await getRates();
-  const newMetals = await getGoldSilver();
-  if(!newRates) return;
+  const spData = await scrapeSPToday();
+  if(!spData || !spData.currencies) return;
 
-  const sypChange = previousRates.SYP ? Math.abs(newRates.SYP - previousRates.SYP) / previousRates.SYP : 1;
-  const sarChange = previousRates.SAR ? Math.abs(newRates.SAR - previousRates.SAR) / previousRates.SAR : 1;
-  const iqdChange = previousRates.IQD ? Math.abs(newRates.IQD - previousRates.IQD) / previousRates.IQD : 1;
-  const goldChange = previousMetals.gold ? Math.abs(newMetals.gold - previousMetals.gold) / previousMetals.gold : 1;
+  const changedCurrencies = [];
+  const currencies = [
+    {key:'USD', name:'🇺🇸 دولار', current: spData.currencies.USD?.buy},
+    {key:'EUR', name:'🇪🇺 يورو', current: spData.currencies.EUR?.buy},
+    {key:'TRY', name:'🇹🇷 ليرة تركية', current: spData.currencies.TRY?.buy},
+    {key:'SAR', name:'🇸🇦 ريال', current: spData.currencies.SAR?.buy}
+  ];
 
-  const hasChange = sypChange > 0.001 || sarChange > 0.001 || iqdChange > 0.001 || goldChange > 0.001;
+  currencies.forEach(c => {
+    if(!c.current || !lastRates[c.key]) return;
+    const change = (c.current - lastRates[c.key]) / lastRates[c.key];
+    if(Math.abs(change) > 0.001) {
+      changedCurrencies.push({
+        name: c.name,
+        arrow: change > 0 ? '↑' : '↓',
+        pct: (change * 100).toFixed(2)
+      });
+    }
+  });
 
-  const hour = new Date().toLocaleString('en-US', {timeZone:'Asia/Riyadh', hour:'numeric', hour12:false});
-  const hourNum = parseInt(hour);
+  currencies.forEach(c => { if(c.current) lastRates[c.key] = c.current; });
 
-  const scheduledHours = [7, 12, 21];
-  const isScheduled = scheduledHours.includes(hourNum);
+  const hour = parseInt(new Date().toLocaleString('en-US', {timeZone:'Asia/Riyadh', hour:'numeric', hour12:false}));
+  const isScheduled = [7,12,21].includes(hour);
+  const hasChange = changedCurrencies.length > 0;
 
   if(isScheduled || hasChange) {
-    const period = hourNum === 7 ? 'morning' : hourNum === 12 ? 'midday' : hourNum === 21 ? 'evening' : 'update';
-    console.log('Sending update. Scheduled:', isScheduled, 'Change detected:', hasChange);
-    await sendToChannel(period);
+    const period = hour===7?'morning':hour===12?'midday':hour===21?'evening':'update';
+    await sendToChannel(period, hasChange ? changedCurrencies : null);
   }
-}, {timezone: 'Asia/Riyadh'});
+}, {timezone:'Asia/Riyadh'});
 
 // Keep alive
 const express = require('express');
@@ -398,7 +507,8 @@ async function handleCommand(chatId, text) {
     await sendMsg(chatId,
       `🤖 <b>بوت سعر الصرف لحظة بلحظة</b>\n📦 الإصدار: ${VERSION}\n\nاختر أمراً:`,
       [[{text:'💱 الأسعار الآن', callback_data:'prices_now'},{text:'📢 اختبار الإرسال', callback_data:'test_send'}],
-       [{text:'📋 قنوات النشر', callback_data:'manage_channels'},{text:'ℹ️ معلومات', callback_data:'bot_info'}]]);
+       [{text:'📋 قنوات النشر', callback_data:'manage_channels'},{text:'⛽ أسعار الوقود', callback_data:'fuel_settings'}],
+       [{text:'ℹ️ معلومات', callback_data:'bot_info'}]]);
 
   } else if(text === 'prices_now') {
     await sendMsg(chatId, '🔄 جاري جلب الأسعار...');
@@ -444,6 +554,17 @@ async function handleCommand(chatId, text) {
     setSetting('extra_channels', channels.join(','));
     await sendMsg(chatId, '✅ تم حذف '+removed[0], [[{text:'🔙 قنوات النشر', callback_data:'manage_channels'}]]);
 
+  } else if(text === 'fuel_settings') {
+    const fuel = getSyriaFuelPrices();
+    await sendMsg(chatId,
+      `⛽ <b>أسعار الوقود الحالية</b>\n\nبنزين 95: ${fuel.gasoline95}\nبنزين 90: ${fuel.gasoline90}\nمازوت: ${fuel.diesel}\nغاز منزلي: ${fuel.gas_home}\nغاز صناعي: ${fuel.gas_industrial}`,
+      [[{text:'✏️ تعديل الأسعار', callback_data:'edit_fuel'},{text:'🔙 رجوع', callback_data:'main'}]]);
+
+  } else if(text === 'edit_fuel') {
+    setSetting('awaiting','edit_fuel');
+    await sendMsg(chatId, 'أرسل الأسعار الجديدة بهذا الشكل:\n95:8000\n90:5000\ndiesel:3000\ngas_home:20000\ngas_ind:80000',
+      [[{text:'❌ إلغاء', callback_data:'main'}]]);
+
   } else if(text === 'bot_info') {
     const channels = getChannels();
     await sendMsg(chatId,
@@ -461,6 +582,22 @@ async function handleCommand(chatId, text) {
       setSetting('extra_channels', channels.join(','));
       await sendMsg(chatId, '✅ تمت إضافة '+ch+'\nإجمالي القنوات: '+(channels.length+1),
         [[{text:'🔙 قنوات النشر', callback_data:'manage_channels'}]]);
+    } else if(awaiting === 'edit_fuel') {
+      setSetting('awaiting','');
+      const lines = text.split('\n');
+      lines.forEach(line => {
+        const [key, val] = line.split(':');
+        if(key && val) {
+          const k = key.trim();
+          const v = val.trim();
+          if(k === '95') setSetting('fuel_gas95', v);
+          else if(k === '90') setSetting('fuel_gas90', v);
+          else if(k === 'diesel') setSetting('fuel_diesel', v);
+          else if(k === 'gas_home') setSetting('fuel_gas_home', v);
+          else if(k === 'gas_ind') setSetting('fuel_gas_ind', v);
+        }
+      });
+      await sendMsg(chatId, '✅ تم تحديث أسعار الوقود', [[{text:'🔙 رجوع', callback_data:'main'}]]);
     }
   }
 }
